@@ -4,4 +4,5 @@ python3 main.py \
 --dataset glue/sst2 \
 --seed 2 \
 --num_shots 4 \
---example_pool_size 1
+--example_pool_size 16 \
+--embedding_dim 64

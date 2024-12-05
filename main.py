@@ -1,11 +1,23 @@
 import numpy as np
 from copy import deepcopy
-# from promptsource.templates import DatasetTemplates
 import torch
-# from env import make_env
 from data_utils import custom_load_dataset
+import argparse
+import random
+from PromptOptEnv import PromptOptEnv
+# from promptsource.templates import DatasetTemplates
+# from env import make_env
 # from utils import random_sampling
-from arguments import parse_args
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type = str , default = "glue/sst2")
+    parser.add_argument("--seed", type = int , default = 2)
+    parser.add_argument("--num_shots", type = int , default = 4)
+    parser.add_argument("--example_pool_size", type = int, default = 16)
+    parser.add_argument("--embedding_dim" , type = int , default = 64)
+    return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -14,7 +26,8 @@ def main():
     params["seed"] = args.seed
     params["num_shots"] = args.num_shots
     params["example_pool_size"] = args.example_pool_size
-    print(args.example_pool_size)
+    params["embedding_dim"] = args.embedding_dim
+    assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
 
     print("Loading Dataset..")
     all_train_sentences, all_train_labels, all_test_sentences, all_test_labels = custom_load_dataset(params)
@@ -31,35 +44,58 @@ def main():
     # create the example pool with equal number of examples for each class
     example_pool_sentences = []
     example_pool_labels = []
+    example_idx = []
 
     # in case the number of examples is not divisible by the number of classes
     remainder_sentences = params['example_pool_size'] % number_labels 
-    print("Remainder sentences", params["example_pool_size"] , number_labels, remainder_sentences) 
+
     sampled_idx = np.random.choice(len(all_train_sentences), 10*params["example_pool_size"] , replace=False)
     for i , idx in enumerate(sampled_idx):
-        print(number_dict)
         if number_dict[all_train_labels[idx]] < int((params['example_pool_size'] - remainder_sentences)/number_labels):
             example_pool_sentences.append(deepcopy(all_train_sentences[idx]))
             example_pool_labels.append(deepcopy(all_train_labels[idx]))
+            example_idx.append(idx)
             number_dict[all_train_labels[idx]] += 1
 
             if sum(number_dict.values()) == params['example_pool_size'] - remainder_sentences:
                 sentences_added = 0
-                # add the remaining examples to the example pool
-                for idx in sampled_idx[i+1:]:
-                    example_pool_sentences.append(deepcopy(all_train_sentences[idx]))
-                    example_pool_labels.append(deepcopy(all_train_labels[idx]))
-                    sentences_added += 1
-                    if sentences_added == remainder_sentences:
-                        print("Length of Example pool now is {}".format(len(example_pool_sentences)))
-                        break
+                if remainder_sentences > 0 :
+                    # add the remaining examples to the example pool
+                    for idx in sampled_idx[i+1:]:
+                        example_pool_sentences.append(deepcopy(all_train_sentences[idx]))
+                        example_pool_labels.append(deepcopy(all_train_labels[idx]))
+                        example_idx.append(idx)
+                        sentences_added += 1
+                        if sentences_added == remainder_sentences:
+                            break
             
             if len(example_pool_sentences) == params['example_pool_size']:
                 break
 
     print("Example Pool has been created with length {}".format(len(example_pool_sentences)))
-    print("Example sentences are: ", example_pool_sentences)
+    # print("Example sentences are: ", example_pool_sentences)
 
+    testing_sentences = []
+    testing_labels = []
+
+    for idx in range(len(all_train_sentences)):
+        if idx not in example_idx:
+            testing_sentences.append(deepcopy(all_train_sentences[idx]))
+            testing_labels.append(deepcopy(all_train_labels[idx]))
+
+    testing_sentences += all_test_sentences
+
+    random.seed(params['seed'])
+    random.shuffle(testing_sentences)
+    testing_labels = [s['label'] for s in testing_sentences]
+
+    print("The remaining sentences have been created with length {}".format(len(testing_sentences)))
+    
+    # we relabel the indices of example sentences and testing sentences for convinience
+    example_pool_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
+    testing_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]
+
+    env = PromptOptEnv(params , example_pool_sentences_relabeled, example_pool_labels, testing_sentences_relabeled, testing_labels)
 
     # few_shot_train_sentences = []
     # few_shot_train_labels = []
