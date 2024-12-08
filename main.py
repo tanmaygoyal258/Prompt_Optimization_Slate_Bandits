@@ -5,9 +5,8 @@ from data_utils import custom_load_dataset
 import argparse
 import random
 from PromptOptEnv import PromptOptEnv
-# from promptsource.templates import DatasetTemplates
-# from env import make_env
-# from utils import random_sampling
+import os
+from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -16,6 +15,7 @@ def parse_args():
     parser.add_argument("--num_shots", type = int , default = 4)
     parser.add_argument("--example_pool_size", type = int, default = 16)
     parser.add_argument("--embedding_dim" , type = int , default = 64)
+    parser.add_argument("--failure_level" , type = float , default = 0.05)
     return parser.parse_args()
 
 
@@ -27,6 +27,7 @@ def main():
     params["num_shots"] = args.num_shots
     params["example_pool_size"] = args.example_pool_size
     params["embedding_dim"] = args.embedding_dim
+    params["failure_level"] = args.failure_level
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
 
     print("Loading Dataset..")
@@ -95,63 +96,18 @@ def main():
     example_pool_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
     testing_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]
 
-    env = PromptOptEnv(params , example_pool_sentences_relabeled, example_pool_labels, testing_sentences_relabeled, testing_labels)
+    now = datetime.now()
+    timestamp = now.strftime("%d-%m_%H-%M")
+    data_path = "{}_result".format(params["dataset"])
+    data_path = data_path.replace('/' , '_')
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
+    data_path_with_timestamp = data_path + "/" + timestamp
+    if not os.path.exists(data_path_with_timestamp):
+        os.makedirs(data_path_with_timestamp)
 
-    # few_shot_train_sentences = []
-    # few_shot_train_labels = []
-    
-    # # initializing a count dictionary to zero for all possible labels
-    # number_dict = {x:0 for x in params['label_dict'].keys()} 
-    
-    # # randomly sampling 100 training samples and labels
-    # hundred_train_sentences, hundred_train_labels = random_sampling(all_train_sentences, all_train_labels, 100)
-    
-    # # ensure that total training samples dont exceed total and number of samples per class dont exceed total/#classes
-    # # where total = params['example_pool_size']
-    # for train_sentence, train_label in zip(hundred_train_sentences, hundred_train_labels):
-    #     if number_dict[train_label] < int(params['example_pool_size']/len(number_dict.values())):
-    #         few_shot_train_sentences.append(deepcopy(train_sentence))
-    #         few_shot_train_labels.append(deepcopy(train_label))
-    #         number_dict[train_label] += 1
-    #     if sum(number_dict.values()) == params['example_pool_size']:
-    #         break
-    # train_sentences, train_labels = few_shot_train_sentences, few_shot_train_labels
-
-    # # same as current prompt sentences and current prompt labels
-    # prompt_sentence_pool, prompt_label_pool = train_sentences[:params['num_shots']], train_labels[:params['num_shots']] 
-
-    # add_prompt_sentence_pool, add_prompt_label_pool = train_sentences[params['num_shots']:], train_labels[params['num_shots']:]
-
-    # if len(all_train_sentences) > 100:
-        
-    #     all_prompt_sentence_pool, all_prompt_label_pool = random_sampling(all_train_sentences, all_train_labels, 100)
-        
-    #     if params['sub_sample']:
-    #         few_shot_train_sentences = []
-    #         few_shot_train_labels = []
-    #         number_dict = {x:0 for x in params['label_dict'].keys()}
-    #         hundred_train_sentences, hundred_train_labels = random_sampling(all_train_sentences, all_train_labels, 1000)
-    #         for train_sentence, train_label in zip(hundred_train_sentences, hundred_train_labels):
-    #             if number_dict[train_label] < 16:
-    #                 few_shot_train_sentences.append(deepcopy(train_sentence))
-    #                 few_shot_train_labels.append(deepcopy(train_label))
-    #                 number_dict[train_label] += 1
-    #             if sum(number_dict.values()) == 16 * len(number_dict.values()):
-    #                 break
-    #         all_train_sentences, all_train_labels = few_shot_train_sentences, few_shot_train_labels        
-    # else:
-    #     all_prompt_sentence_pool, all_prompt_label_pool = all_train_sentences, all_train_labels
-
-    # print("Prompt_Sentence_Pool ", len(prompt_sentence_pool))
-    # print("Add_Prompt_sentence_pool ", len(add_prompt_sentence_pool))
-    # print("All prompt Sentence Pool", len(all_prompt_sentence_pool))
-    # print("All_train_sentences", len(all_train_sentences))
-
-    # # env = make_env(params, params, prompt_sentence_pool, prompt_label_pool, all_prompt_sentence_pool, all_prompt_label_pool, add_prompt_sentence_pool, add_prompt_label_pool, train_sentences, train_labels, max_steps, num_processes, obs_size, entropy_coef=0.0, loss_type=params['rew_type'], verbalizer=params['verbalizer'], evaluate=True):
-    # env = make_env(params, prompt_sentence_pool, prompt_label_pool, all_prompt_sentence_pool, all_prompt_label_pool, add_prompt_sentence_pool, add_prompt_label_pool, all_train_sentences, all_train_labels, entropy_coef=0.0, verbalizer = True, evaluate=True)
-
-    
-
+    env = PromptOptEnv(params , example_pool_sentences_relabeled, example_pool_labels, testing_sentences_relabeled, testing_labels , data_path_with_timestamp)
+    rewards = env.run_algorithm()
 
 if __name__ == "__main__":
     main()

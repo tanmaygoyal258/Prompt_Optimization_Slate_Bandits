@@ -3,8 +3,10 @@ from sentence_transformers import SentenceTransformer
 from ChatGPT import ChatGPT
 from copy import deepcopy
 import numpy as np
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, RobertaConfig, RobertaTokenizer, RobertaForMaskedLM
 
-RATING_TEMPLATE = "Please provide a rating between 0 and 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else."
+# RATING_TEMPLATE = "Please provide a rating between 0 and 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else."
+RATING_TEMPLATE = "Please provide a rating which is either 0 or 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else. The rating has to be either 0 or 1, NOTHING else."
 
 
 def generate_embeddings(text: str , dim: int = 64):
@@ -18,7 +20,6 @@ def generate_embeddings(text: str , dim: int = 64):
     embeddings = embeddings.cpu().numpy().reshape(-1)
     return embeddings
 
-# generate_embeddings("Hello World")
 
 def ChatGPT_eval(response: str, target: str) -> float:
 
@@ -33,33 +34,26 @@ def ChatGPT_eval(response: str, target: str) -> float:
         except:
             print("Try LLM evaluation again...")
 
-# generate_embeddings("Hello World")
-# print(ChatGPT_eval("Abra-ka-dabra" , "Abra"))
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-# def random_sampling(sentences, labels, num):
-#     """randomly sample subset of the training pairs"""
-#     assert len(sentences) == len(labels)
-#     if num > len(labels):
-#         assert False, f"you tried to randomly sample {num}, which is more than the total size of the pool {len(labels)}"
-#     idxs = np.random.choice(len(labels), size=num, replace=False)
-#     selected_sentences = [sentences[i] for i in idxs]
-#     selected_labels = [labels[i] for i in idxs]
-#     return deepcopy(selected_sentences), deepcopy(selected_labels)
+def dsigmoid(x):
+    return sigmoid(x) * (1 - sigmoid(x))
 
-# def chunks(lst, n):
-#     """Yield successive n-sized chunks from lst."""
-#     for i in range(0, len(lst), n):
-#         yield lst[i:i + n]
+def weighted_norm(x, A):
+    return np.sqrt(np.dot(x, np.dot(A, x)))
 
-# def chunk_size_helper(params):
-#     # Set the batch size (the size of the chunks determines the batch size). Default to 4 for GPT-2 and 20 for OpenAI if
-#     # no batch size is specified.
-#     bs = params['bs']
-#     if bs is None:
-#         if 'gpt2' in params['model']:
-#             return 1
-#         else:
-#             assert params['model'] in ['ada', 'babbage', 'curie', 'davinci', 'ada-beta', 'babbage-beta', 'curie-beta', 'davinci-beta']
-#             return 20
-#     else:
-#         return bs
+def gaussian_sample_ellipsoid(center, design, radius):
+    dim = len(center)
+    sample = np.random.normal(0, 1, (dim,))
+    res = np.real_if_close(center + np.linalg.solve(sqrtm(design), sample) * radius)
+    return res
+
+def setup_roberta():
+    config = RobertaConfig.from_pretrained("roberta-large")
+    roberta_tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
+    roberta_model = RobertaForMaskedLM.from_pretrained("roberta-large", config=config)
+    roberta_model.eval().to('cuda:'+str(0))
+
+    print("Finished Model Setup")
+    return roberta_model, roberta_tokenizer
