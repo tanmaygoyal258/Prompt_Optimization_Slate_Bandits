@@ -1,19 +1,22 @@
 import torch.nn.functional as F
-from sentence_transformers import SentenceTransformer
 from ChatGPT import ChatGPT
 from copy import deepcopy
 import numpy as np
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, RobertaConfig, RobertaTokenizer, RobertaForMaskedLM
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, RobertaConfig, RobertaTokenizer, RobertaForMaskedLM, AutoTokenizer
+import torch
+from scipy.linalg import sqrtm
 
 # RATING_TEMPLATE = "Please provide a rating between 0 and 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else."
 RATING_TEMPLATE = "Please provide a rating which is either 0 or 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else. The rating has to be either 0 or 1, NOTHING else."
 
 
-def generate_embeddings(text: str , dim: int = 64):
+
+def generate_embeddings(text: str , dim: int = 64 , model = None):
     assert dim in [64,128,256,512,768] , "Invalid Dimensions. Please choose from [64,128,256,512,768]"
     matryoshka_dim = dim
-    model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
-    embeddings = model.encode([text], convert_to_tensor=True)
+    model = model.eval()
+    with torch.no_grad():
+        embeddings = model.encode([text], convert_to_tensor=True)
     embeddings = F.layer_norm(embeddings, normalized_shape=(embeddings.shape[1],))
     embeddings = embeddings[:, :matryoshka_dim]
     embeddings = F.normalize(embeddings, p=2, dim=1)
@@ -35,7 +38,11 @@ def ChatGPT_eval(response: str, target: str) -> float:
             print("Try LLM evaluation again...")
 
 def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+    x = np.float128(x)
+    if x >= 0:
+        return 1 / (1 + np.exp(-x))
+    else:
+        return np.exp(x) / (1 + np.exp(x))
 
 def dsigmoid(x):
     return sigmoid(x) * (1 - sigmoid(x))
@@ -50,10 +57,15 @@ def gaussian_sample_ellipsoid(center, design, radius):
     return res
 
 def setup_roberta():
-    config = RobertaConfig.from_pretrained("roberta-large")
-    roberta_tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
-    roberta_model = RobertaForMaskedLM.from_pretrained("roberta-large", config=config)
-    roberta_model.eval().to('cuda:'+str(0))
+    # config = RobertaConfig.from_pretrained("roberta-large")
+    # roberta_tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
+    # roberta_model = RobertaForMaskedLM.from_pretrained("roberta-large", config=config)# , device_map = "auto")
+    # roberta_model.eval().to('cuda:'+str(int(1)))
 
+    # print("Finished Model Setup")
+    # return roberta_model, roberta_tokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained("FacebookAI/roberta-base")
+    model = RobertaForMaskedLM.from_pretrained("FacebookAI/roberta-base")
     print("Finished Model Setup")
-    return roberta_model, roberta_tokenizer
+    return model , tokenizer

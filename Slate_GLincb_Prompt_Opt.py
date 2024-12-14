@@ -7,29 +7,45 @@ from datetime import datetime
 
 class Slate_GLinCB_Prompt_Opt():
     # TODO: param_norm_ub
-    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub):
+    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path):
         self.slot_count = num_examples
         self.item_count = example_pool_size
-        self.dim_per_action = 2 * embedding_dim     # to acccount for the query embedding
+        self.dim_per_action = 2 * embedding_dim      # to acccount for the query embedding
         self.dim = self.slot_count * self.dim_per_action
         self.failure_level = failure_level
-        self.param_norm_ub = param_norm_ub
-        self.l2reg = 5 * self.dim_per_action
-        self.vtilde_matrix = self.l2reg * np.eye(self.dim)
-        self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
-        self.v_matrices_inv = [(1 / self.l2reg) * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
-        self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
-        self.theta = np.zeros((self.dim,))
-        self.conf_radius = 0
-        self.cum_loss = 0
-        self.ctr = 1
+        self.param_norm_ub = 1
+        self.l2reg = 5
+        if start_with < 0:
+            self.vtilde_matrix = self.l2reg * np.eye(self.dim)
+            self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
+            self.v_matrices_inv = [(1 / self.l2reg) * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
+            self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
+            self.theta = np.array([np.random.random()*2-1 for i in range(self.dim)])
+            self.theta /= np.linalg.norm(self.theta)
+            # self.theta = np.zeros(self.dim)
+            self.conf_radius = 0
+            self.cum_loss = 0
+            self.ctr = 1
+        else:
+            folder_name = data_path + "/parameters_{}".format(start_with)
+            print("Loading parameters from {}".format(folder_name))
+            self.vtilde_matrix = np.load(folder_name + "/vtilde_matrix.npy")
+            self.vtilde_matrix_inv = np.load(folder_name + "/vtilde_matrix_inv.npy")
+            self.v_matrices = np.load(folder_name + "/v_matrices.npy")
+            self.v_matrices_inv = np.load(folder_name + "/v_matrices_inv.npy")
+            self.theta = np.load(folder_name + "/theta.npy")
+            self.conf_radius = np.load(folder_name + "/conf_radius.npy")
+            self.cum_loss = np.load(folder_name + "/cum_loss.npy")
+            self.ctr = np.load(folder_name + "/ctr.npy")
 
     def reset(self):
         self.vtilde_matrix = self.l2reg * np.eye(self.dim)
         self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
         self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
         self.v_matrices_inv = [(1 / self.l2reg) * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
-        self.theta = np.zeros((self.dim,))
+        # self.theta = np.array([np.random.random()*2-1 for i in range(self.dim)])
+        # self.theta /= np.linalg.norm(self.theta)
+        self.theta = np.zeros(self.dim)
         self.conf_radius = 0
         self.cum_loss = 0
         self.ctr = 1
@@ -88,13 +104,15 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices[idx] += np.outer(arm, arm)
             self.v_matrices_inv[idx] = self.sherman_morrison_update(self.v_matrices_inv[idx] , arm , arm)
 
+        # print("Norm of new theta is {}".format(np.linalg.norm(self.theta)))
+
     def pull(self, arm_set):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
         self.update_ucb_bonus()
-        pulled_arms = self.slotwise_argmax(self.compute_optimistic_reward , arm_set)  
+        pulled_arms_indices = self.slotwise_argmax(self.compute_optimistic_reward , arm_set)  
         # update ctr
         self.ctr += 1
-        return pulled_arms
+        return pulled_arms_indices
 
     def update_ucb_bonus(self):
         """
@@ -111,7 +129,8 @@ class Slate_GLinCB_Prompt_Opt():
         Returns prediction + exploration_bonus for arm.
         """
         norm = weighted_norm(arm, self.v_matrices_inv[slot_idx])
-        pred_reward = np.dot(self.theta[slot_idx * self.dim_per_action : (slot_idx + 1) * self.dim_per_action] , arm)
+        local_theta = self.theta[slot_idx * self.dim_per_action : (slot_idx + 1) * self.dim_per_action]
+        pred_reward = np.dot(local_theta , arm)
         bonus = self.conf_radius * norm
         return pred_reward + bonus
     
@@ -127,15 +146,13 @@ class Slate_GLinCB_Prompt_Opt():
         differs from the slotwise_argmax for normal Slate_G_Lincb in the way that there 
         is a common pool for the slots
         '''
-        picked_actions_with_indices = []
+        picked_actions_indices = []
         for slot in range(self.slot_count):
             slot_values = [(i,fun(a , slot)) for i,a in enumerate(arm_set)]
+            # print("slot {} values {}".format(slot , [x[1] for x in slot_values]))
             sorted_slot_values = sorted(slot_values , key = lambda x: x[1] , reverse = True)
-            for arm in sorted_slot_values:
-                if arm in picked_actions_with_indices:
-                    continue
-                else:
-                    picked_actions_with_indices.append(arm)
+            for i in range(len(sorted_slot_values)):
+                if sorted_slot_values[i][0] not in picked_actions_indices:
+                    picked_actions_indices.append(sorted_slot_values[i][0])
                     break
-        picked_actions = [arm_set[a[0]] for a in picked_actions_with_indices] 
-        return picked_actions
+        return picked_actions_indices
