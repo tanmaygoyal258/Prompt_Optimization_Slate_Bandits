@@ -5,6 +5,8 @@ from numpy.linalg import LinAlgError
 from scipy.linalg import sqrtm
 from scipy.optimize import minimize_scalar
 from utils import sigmoid
+from tqdm import tqdm
+from time import time
 
 
 def fit_online_logistic_estimate(arm, reward, current_estimate, vtilde_matrix, vtilde_inv_matrix, constraint_set_radius,
@@ -72,9 +74,12 @@ def project_ellipsoid(x_to_proj, ell_center, ecc_matrix, radius, safety_check=Fa
     """
     # start by checking if the point to project is already inside the ellipsoid
     ell_dist_to_center = np.dot(x_to_proj - ell_center, np.linalg.solve(ecc_matrix, x_to_proj - ell_center))
-    is_inside = (ell_dist_to_center - radius ** 2) < 1e-3
+    # is_inside = (ell_dist_to_center - radius ** 2) < 1e-3
+    is_inside = (ell_dist_to_center - radius ** 2) < 5e-2
     if is_inside:
         return x_to_proj
+    # else:
+    #     print(ell_dist_to_center - radius ** 2)
 
     # check eccentricity is symmetric PSD
     if safety_check:
@@ -103,3 +108,5 @@ def project_ellipsoid(x_to_proj, ell_center, ecc_matrix, radius, safety_check=Fa
     x_projected = np.dot(sqrt_psd_matrix, eta_opt) + ell_center
 
     return x_projected
+
+    

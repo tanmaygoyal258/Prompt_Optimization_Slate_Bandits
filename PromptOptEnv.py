@@ -6,6 +6,7 @@ import torch
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 import os
+from time import time
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class PromptOptEnv():
@@ -21,40 +22,41 @@ class PromptOptEnv():
         self.embedding_dim = params["embedding_dim"]
         self.failure_level = params["failure_level"]
         self.start_with = params["start_with"]
-        self.param_norm_ub = 1 # extremely loose upper bound
+        self.param_norm_ub = 1 
         self.data_path = data_path
-        self.outfile = open(data_path + "/prompts_chosen.txt" , "w")
+        self.random_baseline = params["random_baseline"]
+        self.outfile = open(data_path + "/prompts_chosen.txt" , "a+")
 
-        self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
 
         self.chosen_examples = []
         self.example_pool = example_pool_sentences
         self.example_pool_labels = example_pool_labels
         
-        # construct prompt style examples with prefixes, example, and answer
-        self.construct_example_with_answers_prefixes()
-        # print("Prompt Style examples are ", self.example_with_answers_prefixes)
-
-        self.example_embeddings = {i : generate_embeddings(s , self.embedding_dim , self.embedding_model) for i,s in enumerate(self.example_with_answers_prefixes)}
-        # self.example_embeddings = {s['idx'] : generate_embeddings(s['sentence'] , self.embedding_dim , self.embedding_model) for s in example_pool_sentences}
-
-        # appending the labels' embeddings to the embeddings
-        # for k in self.example_embeddings.keys():
-            # self.example_embeddings[k] = np.hstack([self.example_embeddings[k] , generate_embeddings(self.label_dict[self.example_pool_labels[k]][0] , self.embedding_dim , self.embedding_model)])
-        
-        self.inv_example_embeddings = {}
-        for k , v in self.example_embeddings.items():
-            self.inv_example_embeddings[tuple(v)] = k
+        if not self.random_baseline:
+            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+    
+            # construct prompt style examples with prefixes, example, and answer and embed
+            # self.construct_example_with_answers_prefixes()
+            # self.example_embeddings = {i : generate_embeddings(s , self.embedding_dim , self.embedding_model) for i,s in enumerate(self.example_with_answers_prefixes)}
+            
+            self.example_embeddings = {s['idx'] : generate_embeddings(s['sentence'] , self.embedding_dim , self.embedding_model) for s in example_pool_sentences}
+            # appending the labels' embeddings to the embeddings
+            for k in self.example_embeddings.keys():
+                self.example_embeddings[k] = np.hstack([self.example_embeddings[k] , generate_embeddings(self.label_dict[self.example_pool_labels[k]][0] , self.embedding_dim , self.embedding_model)])
+            
+            self.inv_example_embeddings = {}
+            for k , v in self.example_embeddings.items():
+                self.inv_example_embeddings[tuple(v)] = k
 
         self.queries = testing_sentences
         self.query_labels = testing_labels
 
         self.model, self.tokenizer = setup_roberta()
+
         self.rewards = [] if self.start_with < 0 else np.load(self.data_path + "/parameters_{}/rewards_array.npy".format(self.start_with)).tolist()
 
-
         # TODO: param_norm_ub
-        self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path)
+        self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries))
 
     def construct_example_with_answers_prefixes(self):
         self.example_with_answers_prefixes = []
@@ -83,23 +85,28 @@ class PromptOptEnv():
         query = self.queries[query_idx]['sentence']
         query_embedding = generate_embeddings(query , self.embedding_dim , self.embedding_model)
         self.arm_set = [np.hstack([query_embedding , example_embedding]) for example_embedding in self.example_embeddings.values()]
-        self.arm_set_normalized = [a/np.linalg.norm(a) for a in self.arm_set]
 
     def run_algorithm(self):
         for time_idx in tqdm(range(self.start_with+1 , len(self.queries))):
             assert time_idx == self.queries[time_idx]["idx"]
 
-            # construct the armset which uses embedding of queries and all examples
-            self.construct_arms(time_idx)   
+            self.chosen_examples = []
+            if not self.random_baseline:
+                # construct the armset which uses embedding of queries and all examples
+                self.construct_arms(time_idx)   
 
-            # pull the arm
-            chosen_examples_indices = self.alg.pull(self.arm_set)
-            chosen_examples = [self.arm_set[idx] for idx in chosen_examples_indices]
+                # pull the arm
+                chosen_examples_indices = self.alg.pull(self.arm_set)
+                chosen_examples = [self.arm_set[idx] for idx in chosen_examples_indices]
 
-            # find the chosen examples
-            for query_plus_embedding in chosen_examples:
-                embedding = query_plus_embedding[self.embedding_dim:]
-                self.chosen_examples.append(self.example_pool[self.inv_example_embeddings[tuple(embedding)]])
+                # find the chosen examples
+                for query_plus_embedding in chosen_examples:
+                    embedding = query_plus_embedding[self.embedding_dim:]
+                    self.chosen_examples.append(self.example_pool[self.inv_example_embeddings[tuple(embedding)]])
+
+            else:
+                chosen_examples_indices = np.random.choice(len(self.example_pool) , self.num_shots , replace=False)
+                self.chosen_examples = [self.example_pool[idx] for idx in chosen_examples_indices]
 
             # construct the prompt
             self.outfile.write("Iteration {}\n".format(time_idx + 1))
@@ -107,38 +114,41 @@ class PromptOptEnv():
             self.outfile.write(prompt + "\n") 
             
             # obtain the answer from roberta
-            self.outfile.write("Answer: ")
             response = self.get_prediction(prompt)
             self.outfile.write("Predicted Answer: {}\n".format(response))
             self.outfile.write("Correct Answer: {} \n".format(self.label_dict[self.query_labels[time_idx]][0] + "\n"))
 
             # get the score from GPT judge
-            score = ChatGPT_eval(response , self.label_dict[self.query_labels[time_idx]][0])
+            # score = ChatGPT_eval(response , self.label_dict[self.query_labels[time_idx]][0])
+            score = 1 if response.strip() == self.label_dict[self.query_labels[time_idx]][0].strip() else 0
             # print(score)
             self.rewards.append(score)
+            self.outfile.write("Reward: {}\n".format(score))
+            self.outfile.write("Accuracy {:.2f}\n".format(np.sum(self.rewards)/len(self.rewards) * 100))
+            self.outfile.write("\n")
 
             # update the parameters
-            self.alg.update_parameters(chosen_examples , score)
-            
-            
-            # delete the previous results
-            if os.path.exists(self.data_path + "/parameters_{}".format(time_idx-1)):
-                for filename in os.listdir(self.data_path + "/parameters_{}".format(time_idx-1)):
-                    os.remove(os.path.join(self.data_path + "/parameters_{}".format(time_idx-1) , filename))
-                os.rmdir(self.data_path + "/parameters_{}".format(time_idx-1))
+            if not self.random_baseline:
+                self.alg.update_parameters(chosen_examples , score)
 
-            # save the new results
-            time_folder = self.data_path + "/parameters_{}".format(time_idx)
-            os.makedirs(self.data_path + "/parameters_{}".format(time_idx))
-            np.save(time_folder + "/rewards_array", np.array(self.rewards))
-            np.save(time_folder + "/vtilde_matrix", self.alg.vtilde_matrix)
-            np.save(time_folder + "/vtilde_matrix_inv", self.alg.vtilde_matrix_inv)
-            np.save(time_folder + "/v_matrices", self.alg.v_matrices)
-            np.save(time_folder + "/v_matrices_inv", self.alg.v_matrices_inv)
-            np.save(time_folder + "/theta", self.alg.theta)
-            np.save(time_folder + "/conf_radius", self.alg.conf_radius)
-            np.save(time_folder + "/cum_loss", self.alg.cum_loss)
-            np.save(time_folder + "/ctr", self.alg.ctr)
+                # delete the previous results
+                if os.path.exists(self.data_path + "/parameters_{}".format(time_idx-1)):
+                    for filename in os.listdir(self.data_path + "/parameters_{}".format(time_idx-1)):
+                        os.remove(os.path.join(self.data_path + "/parameters_{}".format(time_idx-1) , filename))
+                    os.rmdir(self.data_path + "/parameters_{}".format(time_idx-1))
+
+                # save the new results
+                time_folder = self.data_path + "/parameters_{}".format(time_idx)
+                os.makedirs(self.data_path + "/parameters_{}".format(time_idx))
+                np.save(time_folder + "/rewards_array", np.array(self.rewards))
+                np.save(time_folder + "/vtilde_matrix", self.alg.vtilde_matrix)
+                np.save(time_folder + "/vtilde_matrix_inv", self.alg.vtilde_matrix_inv)
+                np.save(time_folder + "/v_matrices", self.alg.v_matrices)
+                np.save(time_folder + "/v_matrices_inv", self.alg.v_matrices_inv)
+                np.save(time_folder + "/theta", self.alg.theta)
+                np.save(time_folder + "/conf_radius", self.alg.conf_radius)
+                np.save(time_folder + "/cum_loss", self.alg.cum_loss)
+                np.save(time_folder + "/ctr", self.alg.ctr)
 
         np.save(self.data_path + "/rewards_array_final" , np.array(self.rewards))
         return self.rewards
@@ -203,7 +213,11 @@ class PromptOptEnv():
         # return return_json["choices"][0]["logprobs"]["tokens"][0].strip(), return_json["choices"][0]["logprobs"]["token_logprobs"][0]
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
-
+        if inputs['input_ids'].shape[1] > 512:
+            print("Token length exceeds 512. Truncating to 512")
+            inputs['input_ids'] = inputs['input_ids'][:, -512:]
+            inputs['attention_mask'] = inputs['attention_mask'][:, -512:]
+        
         with torch.no_grad():
             logits = self.model(**inputs).logits
 

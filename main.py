@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument("--load_chkpt_idx" , type = int , help = "Which index to start from" , default = -1)
     parser.add_argument("--load_data_path" , type = str , help = "Folder to load data from" , default = None)
     parser.add_argument("--comments" , type = str , help = "Comments for the experiment" , default = None)
+    parser.add_argument("--random_baseline" , action = "store_true" , help = "Run random baseline")
     return parser.parse_args()
 
 
@@ -36,6 +37,7 @@ def main():
     params["start_with"] = args.load_chkpt_idx
     params["data_path"] = args.load_data_path
     params["comments"] = args.comments
+    params["random_baseline"] = args.random_baseline
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
 
     print("Loading Dataset..")

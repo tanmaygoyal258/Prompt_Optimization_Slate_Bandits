@@ -3,18 +3,19 @@ from scipy.linalg import block_diag
 from optimization import fit_online_logistic_estimate, fit_online_logistic_estimate_bar
 from utils import sigmoid, dsigmoid, weighted_norm, gaussian_sample_ellipsoid
 from datetime import datetime
-
+from time import time
 
 class Slate_GLinCB_Prompt_Opt():
     # TODO: param_norm_ub
-    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path):
+    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path , horizon):
         self.slot_count = num_examples
         self.item_count = example_pool_size
-        self.dim_per_action = 2 * embedding_dim      # to acccount for the query embedding
+        self.dim_per_action = 3 * embedding_dim      # to acccount for the query embedding
         self.dim = self.slot_count * self.dim_per_action
         self.failure_level = failure_level
-        self.param_norm_ub = 1
+        self.param_norm_ub = param_norm_ub
         self.l2reg = 5
+        self.horizon = horizon
         if start_with < 0:
             self.vtilde_matrix = self.l2reg * np.eye(self.dim)
             self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
@@ -25,7 +26,7 @@ class Slate_GLinCB_Prompt_Opt():
             # self.theta = np.zeros(self.dim)
             self.conf_radius = 0
             self.cum_loss = 0
-            self.ctr = 1
+            self.ctr = 0
         else:
             folder_name = data_path + "/parameters_{}".format(start_with)
             print("Loading parameters from {}".format(folder_name))
@@ -53,6 +54,9 @@ class Slate_GLinCB_Prompt_Opt():
     def update_parameters(self, picked_arms, reward):
 
         arm = np.hstack([*picked_arms])
+        
+        # linearly decreasing precision between 0.1 and 0.01
+        precision = -0.09*self.ctr/(self.horizon-1) + (0.1 + 0.09/(self.horizon-1)) 
 
         # compute new estimate theta
         self.theta = np.real_if_close(fit_online_logistic_estimate(arm=arm,
@@ -62,7 +66,7 @@ class Slate_GLinCB_Prompt_Opt():
                                                                    vtilde_inv_matrix=self.vtilde_matrix_inv,
                                                                    constraint_set_radius=self.param_norm_ub,
                                                                    diameter=self.param_norm_ub,
-                                                                   precision=1/self.ctr))
+                                                                   precision=precision))
        
         # compute theta_bar (needed for data-dependent conf. width)
         theta_bar = np.real_if_close(fit_online_logistic_estimate_bar(arm=arm,
@@ -71,7 +75,7 @@ class Slate_GLinCB_Prompt_Opt():
                                                                       vtilde_inv_matrix=self.vtilde_matrix_inv,
                                                                       constraint_set_radius=self.param_norm_ub,
                                                                       diameter=self.param_norm_ub,
-                                                                      precision=1/self.ctr))
+                                                                      precision=precision))
         disc_norm = np.clip(weighted_norm(self.theta-theta_bar, self.vtilde_matrix), 0, np.inf)
 
         # update matrices
@@ -86,6 +90,7 @@ class Slate_GLinCB_Prompt_Opt():
             msg = f"\033[95m Oops. ECOLog has a problem: the data-dependent condition was not met. This is rare; try increasing the regularization (self.l2reg) \033[95m"
             raise ValueError(msg)
 
+
         # update sum of losses
         coeff_theta = sigmoid(np.dot(self.theta, arm))
         loss_theta = -reward * np.log(coeff_theta) - (1-reward) * np.log(1-coeff_theta)
@@ -95,16 +100,12 @@ class Slate_GLinCB_Prompt_Opt():
 
         # extract the slotwise arm without the zeros
         slot_wise_arms = picked_arms
-
         # create temp arms which are sqrt(sigmoid(arm*theta))
         temp_slot_wise_arms = [dsigmoid(np.sum(self.theta * arm))**0.5 * a for a in slot_wise_arms]
-
         # update the slotwise parameters
         for idx , arm in enumerate(temp_slot_wise_arms):
             self.v_matrices[idx] += np.outer(arm, arm)
             self.v_matrices_inv[idx] = self.sherman_morrison_update(self.v_matrices_inv[idx] , arm , arm)
-
-        # print("Norm of new theta is {}".format(np.linalg.norm(self.theta)))
 
     def pull(self, arm_set):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
@@ -149,7 +150,6 @@ class Slate_GLinCB_Prompt_Opt():
         picked_actions_indices = []
         for slot in range(self.slot_count):
             slot_values = [(i,fun(a , slot)) for i,a in enumerate(arm_set)]
-            # print("slot {} values {}".format(slot , [x[1] for x in slot_values]))
             sorted_slot_values = sorted(slot_values , key = lambda x: x[1] , reverse = True)
             for i in range(len(sorted_slot_values)):
                 if sorted_slot_values[i][0] not in picked_actions_indices:
