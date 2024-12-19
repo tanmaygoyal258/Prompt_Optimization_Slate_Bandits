@@ -55,7 +55,7 @@ class Slate_GLinCB_Prompt_Opt():
 
         arm = np.hstack([*picked_arms])
         
-        # linearly decreasing precision between 0.1 and 0.01
+        # linearly increasing precision between 0.1 and 0.01
         precision = -0.09*self.ctr/(self.horizon-1) + (0.1 + 0.09/(self.horizon-1)) 
 
         # compute new estimate theta
@@ -107,10 +107,10 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices[idx] += np.outer(arm, arm)
             self.v_matrices_inv[idx] = self.sherman_morrison_update(self.v_matrices_inv[idx] , arm , arm)
 
-    def pull(self, arm_set):
+    def pull(self, arm_set , seperate_pools = False):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
         self.update_ucb_bonus()
-        pulled_arms_indices = self.slotwise_argmax(self.compute_optimistic_reward , arm_set)  
+        pulled_arms_indices = self.slotwise_argmax(self.compute_optimistic_reward , arm_set , seperate_pools)  
         # update ctr
         self.ctr += 1
         return pulled_arms_indices
@@ -141,7 +141,7 @@ class Slate_GLinCB_Prompt_Opt():
         '''
         return v_inv - v_inv@np.outer(vec1 , vec2)@v_inv/(1 + np.dot(vec1, v_inv@vec2))
 
-    def slotwise_argmax(self , fun , arm_set):
+    def slotwise_argmax(self , fun , arm_set , seperate_pools = False):
         '''
         returns the best arm in each set maximizing fun
         differs from the slotwise_argmax for normal Slate_G_Lincb in the way that there 
@@ -149,10 +149,20 @@ class Slate_GLinCB_Prompt_Opt():
         '''
         picked_actions_indices = []
         for slot in range(self.slot_count):
-            slot_values = [(i,fun(a , slot)) for i,a in enumerate(arm_set)]
+            slot_arms = arm_set[slot] if seperate_pools else arm_set
+            slot_values = [(i,fun(a , slot)) for i,a in enumerate(slot_arms)]
             sorted_slot_values = sorted(slot_values , key = lambda x: x[1] , reverse = True)
-            for i in range(len(sorted_slot_values)):
-                if sorted_slot_values[i][0] not in picked_actions_indices:
-                    picked_actions_indices.append(sorted_slot_values[i][0])
-                    break
+            
+            if seperate_pools:
+                picked_actions_indices.append(sorted_slot_values[i][0])
+
+            else:
+                # ensure examples donot repeat over slots
+                for i in range(len(sorted_slot_values)):
+                    if sorted_slot_values[i][0] not in picked_actions_indices:
+                        picked_actions_indices.append(sorted_slot_values[i][0])
+                        break
+
         return picked_actions_indices
+        
+       

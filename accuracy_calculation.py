@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-folder = "glue_sst2_result/16-12_18-00"
+folder = "glue_sst2_result/16-12_23-01"
 for x in os.listdir(folder):
    if 'parameters' in x and not os.path.isfile(x):
     current_parameter_folder = os.path.join(folder , x)

@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument("--load_data_path" , type = str , help = "Folder to load data from" , default = None)
     parser.add_argument("--comments" , type = str , help = "Comments for the experiment" , default = None)
     parser.add_argument("--random_baseline" , action = "store_true" , help = "Run random baseline")
+    parser.add_argument("--seperate_pools" , action = "store_true" , help = "Split the common pool into random pools for each slot")
     return parser.parse_args()
 
 
@@ -38,6 +39,7 @@ def main():
     params["data_path"] = args.load_data_path
     params["comments"] = args.comments
     params["random_baseline"] = args.random_baseline
+    params["seperate_pools"] = args.seperate_pools
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
 
     print("Loading Dataset..")

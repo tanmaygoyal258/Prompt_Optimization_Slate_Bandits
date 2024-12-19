@@ -22,9 +22,10 @@ class PromptOptEnv():
         self.embedding_dim = params["embedding_dim"]
         self.failure_level = params["failure_level"]
         self.start_with = params["start_with"]
-        self.param_norm_ub = 1 
+        self.param_norm_ub = 1
         self.data_path = data_path
         self.random_baseline = params["random_baseline"]
+        self.seperate_pools = params["seperate_pools"]
         self.outfile = open(data_path + "/prompts_chosen.txt" , "a+")
 
 
@@ -86,6 +87,10 @@ class PromptOptEnv():
         query_embedding = generate_embeddings(query , self.embedding_dim , self.embedding_model)
         self.arm_set = [np.hstack([query_embedding , example_embedding]) for example_embedding in self.example_embeddings.values()]
 
+    def construct_random_pools(self):
+        ordering = np.random.permutation(self.example_pool_size).reshape(self.num_shots , -1)
+        self.arm_set =  [[self.arm_set[i] for i in ordering[j]] for j in range(self.num_shots)]
+
     def run_algorithm(self):
         for time_idx in tqdm(range(self.start_with+1 , len(self.queries))):
             assert time_idx == self.queries[time_idx]["idx"]
@@ -95,9 +100,13 @@ class PromptOptEnv():
                 # construct the armset which uses embedding of queries and all examples
                 self.construct_arms(time_idx)   
 
+                # if seperate_pools, then construct the random pools
+                if self.seperate_pools:
+                    self.construct_random_pools()
+
                 # pull the arm
-                chosen_examples_indices = self.alg.pull(self.arm_set)
-                chosen_examples = [self.arm_set[idx] for idx in chosen_examples_indices]
+                chosen_examples_indices = self.alg.pull(self.arm_set , self.seperate_pools)
+                chosen_examples = [self.arm_set[idx] for idx in chosen_examples_indices] if not self.seperate_pools else [self.arm_set[i][idx] for i,idx in enumerate(chosen_examples_indices)]
 
                 # find the chosen examples
                 for query_plus_embedding in chosen_examples:
