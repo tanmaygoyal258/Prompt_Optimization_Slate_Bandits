@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--comments" , type = str , help = "Comments for the experiment" , default = None)
     parser.add_argument("--random_baseline" , action = "store_true" , help = "Run random baseline")
     parser.add_argument("--seperate_pools" , action = "store_true" , help = "Split the common pool into random pools for each slot")
+    parser.add_argument("--warmup_length" , type = int , default = 0)   
     return parser.parse_args()
 
 
@@ -40,7 +41,10 @@ def main():
     params["comments"] = args.comments
     params["random_baseline"] = args.random_baseline
     params["seperate_pools"] = args.seperate_pools
+    params["warmup_length"] = args.warmup_length
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
+
+    print(params)
 
     print("Loading Dataset..")
     all_train_sentences, all_train_labels, all_test_sentences, all_test_labels = custom_load_dataset(params)
@@ -62,8 +66,8 @@ def main():
     # in case the number of examples is not divisible by the number of classes
     remainder_sentences = params['example_pool_size'] % number_labels 
 
-    sampled_idx = np.random.choice(len(all_train_sentences), 10*params["example_pool_size"] , replace=False)
-    for i , idx in enumerate(sampled_idx):
+    sampled_idx_examples = np.random.choice(len(all_train_sentences), 10*params["example_pool_size"] , replace=False)
+    for i , idx in enumerate(sampled_idx_examples):
         if number_dict[all_train_labels[idx]] < int((params['example_pool_size'] - remainder_sentences)/number_labels):
             example_pool_sentences.append(deepcopy(all_train_sentences[idx]))
             example_pool_labels.append(deepcopy(all_train_labels[idx]))
@@ -74,7 +78,7 @@ def main():
                 sentences_added = 0
                 if remainder_sentences > 0 :
                     # add the remaining examples to the example pool
-                    for idx in sampled_idx[i+1:]:
+                    for idx in sampled_idx_examples[i+1:]:
                         example_pool_sentences.append(deepcopy(all_train_sentences[idx]))
                         example_pool_labels.append(deepcopy(all_train_labels[idx]))
                         example_idx.append(idx)
@@ -84,6 +88,7 @@ def main():
             
             if len(example_pool_sentences) == params['example_pool_size']:
                 break
+    
 
     print("Example Pool has been created with length {}".format(len(example_pool_sentences)))
 
@@ -97,17 +102,54 @@ def main():
                 testing_labels.append(deepcopy(all_train_labels[idx]))
 
     testing_sentences += all_test_sentences
-
     random.seed(params['seed'])
     random.shuffle(testing_sentences)
+
+    if params["warmup_length"] > 0:
+        warmup_sentences = []
+        warmup_labels = []
+        warmup_idx = []
+
+        number_dict = {x:0 for x in params['label_dict'].keys()}
+
+        # in case the number of examples is not divisible by the number of classes
+        remainder_sentences = params["warmup_length"] % number_labels 
+
+        sampled_idx = np.random.choice(len(all_train_sentences), 5*params["warmup_length"] , replace=False)
+        for i , idx in enumerate(sampled_idx):
+            if idx not in sampled_idx_examples and number_dict[all_train_labels[idx]] < int((params["warmup_length"] - remainder_sentences)/number_labels):
+                warmup_sentences.append(deepcopy(all_train_sentences[idx]))
+                warmup_labels.append(deepcopy(all_train_labels[idx]))
+                warmup_idx.append(idx)
+                number_dict[all_train_labels[idx]] += 1
+
+                if sum(number_dict.values()) == params["warmup_length"] - remainder_sentences:
+                    sentences_added = 0
+                    if remainder_sentences > 0 :
+                        # add the remaining examples to the example pool
+                        for idx in sampled_idx[i+1:]:
+                            warmup_sentences.append(deepcopy(all_train_sentences[idx]))
+                            warmup_labels.append(deepcopy(all_train_labels[idx]))
+                            warmup_idx.append(idx)
+                            sentences_added += 1
+                            if sentences_added == remainder_sentences:
+                                break
+                
+                if len(warmup_sentences) == params["warmup_length"]:
+                    break
+
+    else:
+        warmup_sentences = []
+
+    random.shuffle(warmup_sentences)
+    print("Warmup sentences have been created with length {}".format(len(warmup_sentences)))
+    testing_sentences = warmup_sentences + testing_sentences
     testing_labels = [s['label'] for s in testing_sentences]
 
-    print("The remaining sentences have been created with length {}".format(len(testing_sentences)))
-    
     # we relabel the indices of example sentences and testing sentences for convinience
     example_pool_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
     testing_sentences_relabeled = [{'sentence' : s['sentence'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]
-
+    
     if params["data_path"] is None:
         now = datetime.now()
         timestamp = now.strftime("%d-%m_%H-%M")

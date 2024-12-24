@@ -1,11 +1,12 @@
-from utils import generate_embeddings , ChatGPT_eval
+from utils import generate_embeddings #, ChatGPT_eval
 import numpy as np
 from Slate_GLincb_Prompt_Opt import Slate_GLinCB_Prompt_Opt
 from utils import setup_roberta
-import torch
 from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
 import os
+# os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+import torch
+from sentence_transformers import SentenceTransformer
 from time import time
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -34,7 +35,7 @@ class PromptOptEnv():
         self.example_pool_labels = example_pool_labels
         
         if not self.random_baseline:
-            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True , device = "mps")
     
             # construct prompt style examples with prefixes, example, and answer and embed
             # self.construct_example_with_answers_prefixes()

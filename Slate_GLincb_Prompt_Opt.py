@@ -57,6 +57,7 @@ class Slate_GLinCB_Prompt_Opt():
         
         # linearly increasing precision between 0.1 and 0.01
         precision = -0.09*self.ctr/(self.horizon-1) + (0.1 + 0.09/(self.horizon-1)) 
+        # precision = 0.1
 
         # compute new estimate theta
         self.theta = np.real_if_close(fit_online_logistic_estimate(arm=arm,
@@ -154,7 +155,7 @@ class Slate_GLinCB_Prompt_Opt():
             sorted_slot_values = sorted(slot_values , key = lambda x: x[1] , reverse = True)
             
             if seperate_pools:
-                picked_actions_indices.append(sorted_slot_values[i][0])
+                picked_actions_indices.append(sorted_slot_values[0][0])
 
             else:
                 # ensure examples donot repeat over slots
@@ -165,4 +166,3 @@ class Slate_GLinCB_Prompt_Opt():
 
         return picked_actions_indices
         
-       
