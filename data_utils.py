@@ -160,6 +160,7 @@ def custom_load_dataset(params, change_params=True):
             params['inv_label_dict'] = {'terrible': 0, 'great': 1}
             params['task_format'] = 'classification'
             params['num_tokens_to_predict'] = 1
+            params['sentence_key'] = 'sentence'
     
     elif params['dataset'] == 'glue/qnli':
         orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels = load_qnli()
@@ -250,6 +251,7 @@ def custom_load_dataset(params, change_params=True):
             params['inv_label_dict'] = {'terrible': 0, 'great': 1}
             params['task_format'] = 'classification'
             params['num_tokens_to_predict'] = 1
+            params['sentence_key'] = 'text'
 
     elif params['dataset'] == 'rotten_tomatoes':
         orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels, str2int, int2str = load_rotten_tomatoes()

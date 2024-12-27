@@ -224,7 +224,7 @@ class PromptOptEnv():
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
         if inputs['input_ids'].shape[1] > 512:
-            print("Token length exceeds 512. Truncating to 512")
+            # print("Token length exceeds 512. Truncating to 512")
             inputs['input_ids'] = inputs['input_ids'][:, -512:]
             inputs['attention_mask'] = inputs['attention_mask'][:, -512:]
         

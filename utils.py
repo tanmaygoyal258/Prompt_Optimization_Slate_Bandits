@@ -69,3 +69,38 @@ def setup_roberta():
     model = RobertaForMaskedLM.from_pretrained("FacebookAI/roberta-base")
     print("Finished Model Setup")
     return model , tokenizer
+
+def random_equal_sampling(sentences , labels , num_labels , num_points):
+    number_dict = {x:0 for x in range(num_labels)}
+
+    # create the example pool with equal number of examples for each class
+    sentences_sampled = []
+    labels_sampled = []
+    idx_sampled = []
+    # in case the number of examples is not divisible by the number of classes
+    remainder_sentences = num_points % num_labels 
+
+    sampled_idx = np.random.choice(len(sentences), 10*num_points , replace=False)
+    for i , idx in enumerate(sampled_idx):
+        if number_dict[labels[idx]] < int((num_points - remainder_sentences)/num_labels):
+            sentences_sampled.append(deepcopy(sentences[idx]))
+            labels_sampled.append(deepcopy(labels[idx]))
+            idx_sampled.append(idx)
+            number_dict[labels[idx]] += 1
+
+            if sum(number_dict.values()) == num_points - remainder_sentences:
+                sentences_added = 0
+                if remainder_sentences > 0 :
+                    # add the remaining examples to the example pool
+                    for idx in sampled_idx[i+1:]:
+                        sentences.append(deepcopy(sentences[idx]))
+                        labels.append(deepcopy(labels[idx]))
+                        example_idx.append(idx)
+                        sentences_added += 1
+                        if sentences_added == remainder_sentences:
+                            break
+            
+            if len(sentences) == num_points:
+                return sentences_sampled , labels_sampled , idx_sampled
+
+    return sentences_sampled , labels_sampled , idx_sampled
