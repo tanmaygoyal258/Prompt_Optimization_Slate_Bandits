@@ -2,9 +2,11 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-TEST_SET_LENGTH = 1000
+TRAIN_SET_LENGTH = 3668
+VAL_SET_LENGTH = 408
+TEST_SET_LENGTH = 1725
 
-folder = "glue_sst2_result/26-12_00-16"
+folder = "glue_mrpc_result/28-12_15-05"
 for x in os.listdir(folder):
    if 'parameters' in x and not os.path.isfile(x):
     current_parameter_folder = os.path.join(folder , x)
@@ -13,25 +15,38 @@ try:
 except:
     reward = np.load(folder + "/rewards_array_final.npy")
 
+total_length = reward.shape[0]
 
-print("Accuracy: {:.2f}".format( reward.sum()/reward.shape[0] * 100))
-if reward.shape[0] > TEST_SET_LENGTH:
-   print("Accuracy for test dataset: {:.2f}".format( reward[-TEST_SET_LENGTH:].sum()/TEST_SET_LENGTH * 100))
+print("Accuracy: {:.2f}".format( reward.sum()/total_length * 100))
+
+if total_length > TRAIN_SET_LENGTH + VAL_SET_LENGTH:
+    print("Accuracy for validation dataset: {:.2f}".format( reward[TRAIN_SET_LENGTH:TRAIN_SET_LENGTH+VAL_SET_LENGTH].sum()/VAL_SET_LENGTH * 100))
+    print("Accuracy for test dataset: {:.2f}".format( reward[TRAIN_SET_LENGTH+VAL_SET_LENGTH:].sum()/len(reward[TRAIN_SET_LENGTH+VAL_SET_LENGTH:]) * 100))
+    if TRAIN_SET_LENGTH > 0:
+        print("Accuracy for train dataset: {:.2f}".format( reward[:TRAIN_SET_LENGTH].sum()/TRAIN_SET_LENGTH * 100))
+    print("Accuracy for validation and test dataset: {:.2f}".format( reward[TRAIN_SET_LENGTH:].sum()/len(reward[TRAIN_SET_LENGTH:]) * 100))
+
+elif total_length > TRAIN_SET_LENGTH:
+    print("Accuracy for validation dataset: {:.2f}".format( reward[TRAIN_SET_LENGTH:].sum()/len(reward[TRAIN_SET_LENGTH:]) * 100))
+    if TRAIN_SET_LENGTH > 0:
+        print("Accuracy for train dataset: {:.2f}".format( reward[:TRAIN_SET_LENGTH].sum()/TRAIN_SET_LENGTH * 100))
 
 
 plt.figure(figsize = (20,15))
 plt.subplot(1,2,1)
-if reward.shape[0] < TEST_SET_LENGTH:
+if reward.shape[0] <= TRAIN_SET_LENGTH:
     cum_reward = np.cumsum(reward)
     plt.plot([i for i in range(len(cum_reward))] , cum_reward , 'r-')
     plt.title("Cumulative Reward Curve")
     plt.grid(True)
 else:
-    test_reward = reward[-TEST_SET_LENGTH:]
-    accuracy = [test_reward.cumsum()[i]/(i+1)*100 for i in range(len(test_reward))]
+    val_test_reward = reward[TRAIN_SET_LENGTH:]
+    accuracy = [val_test_reward.cumsum()[i]/(i+1)*100 for i in range(len(val_test_reward))]
     plt.plot([i for i in range(len(accuracy))] , accuracy , 'r-')
-    plt.title("Accuracy Curve for Test Dataset")
+    plt.title("Accuracy Curve for Validation and Test Dataset")
     plt.grid(True)
+    if len(val_test_reward) > VAL_SET_LENGTH:
+        plt.axvline(x = VAL_SET_LENGTH , color = 'b')
 
 
 plt.subplot(1,2,2)
@@ -40,8 +55,11 @@ accuracy = [cum_reward[i]/(i+1)*100 for i in range(len(cum_reward))]
 plt.plot([i for i in range(len(accuracy))] , accuracy , 'r-')
 plt.title("Accuracy Curve")
 plt.grid(True)
-if reward.shape[0] >= TEST_SET_LENGTH:
-    plt.axvline(x = reward.shape[0] - TEST_SET_LENGTH , color = 'b')
+if reward.shape[0] > TRAIN_SET_LENGTH + VAL_SET_LENGTH:
+    plt.axvline(x = TRAIN_SET_LENGTH , color = 'b')
+    plt.axvline(x = TRAIN_SET_LENGTH + VAL_SET_LENGTH , color = 'b')
+elif reward.shape[0] > VAL_SET_LENGTH:
+    plt.axvline(x = TRAIN_SET_LENGTH , color = 'b')
 plt.savefig(folder + "/accuracy_reward_curves.png")
 
 

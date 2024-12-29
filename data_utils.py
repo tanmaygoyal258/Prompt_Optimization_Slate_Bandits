@@ -8,11 +8,14 @@ def load_sst2():
     from datasets import load_dataset
     train_sentences = load_dataset('glue', 'sst2', split='train')
     train_labels = train_sentences['label']
-    test_sentences = load_dataset('glue', 'sst2', split='validation')
+    validation_sentences = load_dataset('glue', 'sst2', split='validation')
+    validation_labels = validation_sentences['label']
+    test_sentences = load_dataset('glue', 'sst2', split='test')
     test_labels = test_sentences['label']
     train_sentences = [sentence for sentence in train_sentences]
+    validation_sentences = [sentence for sentence in validation_sentences]
     test_sentences = [sentence for sentence in test_sentences]
-    return train_sentences, train_labels, test_sentences, test_labels
+    return train_sentences, train_labels, validation_sentences , validation_labels , test_sentences, test_labels
 
 def load_qnli():
     from datasets import load_dataset
@@ -38,11 +41,14 @@ def load_mrpc():
     from datasets import load_dataset
     train_sentences = load_dataset('glue', 'mrpc', split='train')
     train_labels = train_sentences['label']
-    test_sentences = load_dataset('glue', 'mrpc', split='validation')
+    validation_sentences = load_dataset('glue', 'mrpc', split='validation')
+    validation_labels = validation_sentences['label']
+    test_sentences = load_dataset('glue', 'mrpc', split='test')
     test_labels = test_sentences['label']
     train_sentences = [sentence for sentence in train_sentences]
+    validation_sentences = [sentence for sentence in validation_sentences]
     test_sentences = [sentence for sentence in test_sentences]
-    return train_sentences, train_labels, test_sentences, test_labels
+    return train_sentences, train_labels, validation_sentences , validation_labels , test_sentences, test_labels
 
 def load_customer_review():
     from datasets import load_dataset
@@ -88,7 +94,7 @@ def load_yelp_polarity():
     int2str = inv_map = {v: k for k, v in str2int.items()}
     train_sentences = [sentence for sentence in train_sentences]
     test_sentences = [sentence for sentence in test_sentences]
-    return train_sentences, train_labels, test_sentences, test_labels, str2int, int2str
+    return train_sentences, train_labels, None , None , test_sentences, test_labels, str2int, int2str
 
 def load_rte():
     from datasets import load_dataset
@@ -147,11 +153,11 @@ def custom_load_dataset(params, change_params=True):
     """
     Load train and test data
     :param params: experiment parameter, which contains dataset spec
-    :return: train_x, train_y, test_x, test_y
+    :return: train_x, train_y, val_x , val_y,  test_x, test_y
     """
 
     if params['dataset'] == 'glue/sst2':
-        orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels = load_sst2()
+        orig_train_sentences, orig_train_labels, orig_validation_sentences , orig_validation_labels , orig_test_sentences, orig_test_labels = load_sst2()
         if change_params:
             params['prompt_prefix'] = "In this task, you are given sentences from movie reviews. The task is to classify a sentence as \"great\" if the sentiment of the sentence is positive or as \"terrible\" if the sentiment of the sentence is negative.\n\n"
             params["q_prefix"] = "Review: "
@@ -185,7 +191,7 @@ def custom_load_dataset(params, change_params=True):
             params['num_tokens_to_predict'] = 1
 
     elif params['dataset'] == 'glue/mrpc':
-        orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels = load_mrpc()
+        orig_train_sentences, orig_train_labels, orig_validation_sentences , orig_validation_labels , orig_test_sentences, orig_test_labels = load_mrpc()
         if change_params:
             params['prompt_prefix'] = "You are given two sentences(Sentence1 and Sentence2). Answer \"Yes\" if these sentences are a paraphrase of one another, otherwise answer \"No\".\n\n"
             params["q_prefix"] = " "
@@ -242,7 +248,7 @@ def custom_load_dataset(params, change_params=True):
             params['num_tokens_to_predict'] = 1
 
     elif params['dataset'] == 'yelp_polarity':
-        orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels, str2int, int2str = load_yelp_polarity()
+        orig_train_sentences, orig_train_labels, orig_validation_sentences , orig_validation_labels , orig_test_sentences, orig_test_labels, str2int, int2str = load_yelp_polarity()
         if change_params:
             params['prompt_prefix'] = "In this task, you are given sentences from Yelp reviews. The task is to classify a sentence as \"great\" if the sentiment of the sentence is positive or as \"terrible\" if the sentiment of the sentence is negative.\n\n"
             params["q_prefix"] = "Review: "
@@ -414,5 +420,5 @@ def custom_load_dataset(params, change_params=True):
 
     else:
         raise NotImplementedError
-    print('train set length: ', len(orig_train_sentences), ' test set length: ', len(orig_test_sentences), flush=True)
-    return orig_train_sentences, orig_train_labels, orig_test_sentences, orig_test_labels
+    print('train set length: ', len(orig_train_sentences), 'validation set length: ', len(orig_validation_sentences) , ' test set length: ', len(orig_test_sentences), flush=True)
+    return orig_train_sentences, orig_train_labels, orig_validation_sentences, orig_validation_labels , orig_test_sentences, orig_test_labels

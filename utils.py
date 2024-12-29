@@ -38,7 +38,6 @@ def ChatGPT_eval(response: str, target: str) -> float:
             print("Try LLM evaluation again...")
 
 def sigmoid(x):
-    x = np.float128(x)
     if x >= 0:
         return 1 / (1 + np.exp(-x))
     else:
@@ -95,7 +94,7 @@ def random_equal_sampling(sentences , labels , num_labels , num_points):
                     for idx in sampled_idx[i+1:]:
                         sentences.append(deepcopy(sentences[idx]))
                         labels.append(deepcopy(labels[idx]))
-                        example_idx.append(idx)
+                        idx_sampled.append(idx)
                         sentences_added += 1
                         if sentences_added == remainder_sentences:
                             break

@@ -50,64 +50,74 @@ def main():
     print(params)
 
     print("Loading Dataset..")
-    all_train_sentences, all_train_labels, all_test_sentences, all_test_labels = custom_load_dataset(params)
+    all_train_sentences, all_train_labels, all_val_sentences, all_val_labels , all_test_sentences, all_test_labels = custom_load_dataset(params)
     print("Dataset has been loaded..")
 
     # Set seed
     np.random.seed(params['seed'])  
-
     number_labels = len(params["label_dict"])
-
-    # initializing a count dictionary to zero for all possible labels
-    number_dict = {x:0 for x in params['label_dict'].keys()}
-
-    # create the example pool with equal number of examples for each class
-    example_pool_sentences , example_pool_labels , example_idx = random_equal_sampling(all_train_sentences , all_train_labels , number_labels , params['example_pool_size'])
-    print("Example Pool has been created with length {}".format(len(example_pool_sentences)))
-
+    
+    # create the testing sentences
     testing_sentences = []
     testing_labels = []
-
-    if not params["only_test"]:
-        for idx in range(len(all_train_sentences)):
-            if idx not in example_idx:
-                testing_sentences.append(deepcopy(all_train_sentences[idx]))
-                testing_labels.append(deepcopy(all_train_labels[idx]))
 
     if params["test_length"] > 0:
         testing_sentences_sampled , testing_labels_sampled , _ = random_equal_sampling(all_test_sentences , all_test_labels , number_labels , params["test_length"])
         testing_sentences += testing_sentences_sampled
         print("Testing sentences have been created with length {}".format(len(testing_sentences_sampled)))
-
     else:
         testing_sentences += all_test_sentences
-    
+
     random.seed(params['seed'])
-    random.shuffle(testing_sentences)
+    if all_val_sentences is not None:
+        random.shuffle(all_val_sentences)
+        testing_sentences = all_val_sentences + testing_sentences
+    else:
+        random.shuffle(testing_sentences)
+
+    # create the example pool with equal number of examples for each class
+    example_pool_sentences , example_pool_labels , example_idx = random_equal_sampling(all_train_sentences , all_train_labels , number_labels , params['example_pool_size'])
+    print("Example Pool has been created with length {}".format(len(example_pool_sentences)))
+
+    # if we wish to include training datapoints (entire training dataset)
+    # else specify number of points in warmup_length
+    if not params["only_test"]:
+        remaining_sentences = []
+        remaining_labels = []
+        for idx in range(len(all_train_sentences)):
+            if idx not in example_idx:
+                remaining_sentences.append(deepcopy(all_train_sentences[idx]))
+                remaining_labels.append(deepcopy(all_train_labels[idx]))
+        random.shuffle(remaining_sentences)
+        testing_sentences = remaining_sentences + testing_sentences
 
     # construct the warmup sentences 
     if params["warmup_length"] > 0:
-        no_repeat = True
-        while no_repeat:
-            no_repeat = False
+        repeat = True
+        while repeat:
+            repeat = False
             warmup_sentences , warmup_labels , warmup_idx = random_equal_sampling(all_train_sentences , all_train_labels , number_labels , params["warmup_length"])
             for idx in warmup_idx:
                 if idx in example_idx:
-                    no_repeat = True
+                    repeat = True
                     break    
     else:
         warmup_sentences = []
-
     random.shuffle(warmup_sentences)
     print("Warmup sentences have been created with length {}".format(len(warmup_sentences)))
     testing_sentences = warmup_sentences + testing_sentences
     testing_labels = [s['label'] for s in testing_sentences]
 
     # we relabel the indices of example sentences and testing sentences for convinience
-    example_pool_sentences_relabeled = [{'sentence' : s[params["sentence_key"]] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
-    testing_sentences_relabeled = [{'sentence' : s[params["sentence_key"]] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]
+    if params["dataset"] != "glue/mrpc":
+        example_pool_sentences_relabeled = [{'sentence' : s[params["sentence_key"]] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
+        testing_sentences_relabeled = [{'sentence' : s[params["sentence_key"]] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]
+    else:
+        # mrpc dataset
+        example_pool_sentences_relabeled = [{'sentence' : s['sentence1'] + "\n" + s['sentence2'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(example_pool_sentences)]
+        testing_sentences_relabeled = [{'sentence' : s['sentence1'] + "\n" + s['sentence2'] , 'label' : s['label'] , 'idx' : i} for i , s in enumerate(testing_sentences)]    
     
-    # check for vcalidity of the data path
+    # check for validity of the data path
     if params["data_path"] is None:
         now = datetime.now()
         timestamp = now.strftime("%d-%m_%H-%M")
