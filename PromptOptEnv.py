@@ -4,7 +4,6 @@ from Slate_GLincb_Prompt_Opt import Slate_GLinCB_Prompt_Opt
 from utils import setup_roberta
 from tqdm import tqdm
 import os
-# os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import torch
 from sentence_transformers import SentenceTransformer
 from time import time
@@ -35,7 +34,7 @@ class PromptOptEnv():
         self.example_pool_labels = example_pool_labels
         
         if not self.random_baseline:
-            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True , device = "mps")
+            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
     
             # construct prompt style examples with prefixes, example, and answer and embed
             # self.construct_example_with_answers_prefixes()
@@ -129,8 +128,8 @@ class PromptOptEnv():
             self.outfile.write("Correct Answer: {} \n".format(self.label_dict[self.query_labels[time_idx]][0] + "\n"))
 
             # get the score from GPT judge
-            # score = ChatGPT_eval(response , self.label_dict[self.query_labels[time_idx]][0])
-            score = 1 if response.strip() == self.label_dict[self.query_labels[time_idx]][0].strip() else 0
+            score = ChatGPT_eval(response , self.label_dict[self.query_labels[time_idx]][0])
+            # score = 1 if response.strip() == self.label_dict[self.query_labels[time_idx]][0].strip() else 0
             # print(score)
             self.rewards.append(score)
             self.outfile.write("Reward: {}\n".format(score))
