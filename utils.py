@@ -9,8 +9,6 @@ from scipy.linalg import sqrtm
 # RATING_TEMPLATE = "Please provide a rating between 0 and 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else."
 RATING_TEMPLATE = "Please provide a rating which is either 0 or 1 about the semantic similarity between '[Target]' and '[Response]'. Provide the rating only and NOTHING else. The rating has to be either 0 or 1, NOTHING else."
 
-
-
 def generate_embeddings(text: str , dim: int = 64 , model = None):
     assert dim in [64,128,256,512,768] , "Invalid Dimensions. Please choose from [64,128,256,512,768]"
     matryoshka_dim = dim
@@ -56,14 +54,6 @@ def gaussian_sample_ellipsoid(center, design, radius):
     return res
 
 def setup_roberta():
-    # config = RobertaConfig.from_pretrained("roberta-large")
-    # roberta_tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
-    # roberta_model = RobertaForMaskedLM.from_pretrained("roberta-large", config=config)# , device_map = "auto")
-    # roberta_model.eval().to('cuda:'+str(int(1)))
-
-    # print("Finished Model Setup")
-    # return roberta_model, roberta_tokenizer
-
     tokenizer = AutoTokenizer.from_pretrained("FacebookAI/roberta-base")
     model = RobertaForMaskedLM.from_pretrained("FacebookAI/roberta-base")
     print("Finished Model Setup")

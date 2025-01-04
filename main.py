@@ -46,9 +46,9 @@ def main():
     params["warmup_length"] = args.warmup_length
     params["test_length"] = args.test_length
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
-
     print(params)
 
+    # loading the dataset
     print("Loading Dataset..")
     all_train_sentences, all_train_labels, all_val_sentences, all_val_labels , all_test_sentences, all_test_labels = custom_load_dataset(params)
     print("Dataset has been loaded..")
@@ -61,7 +61,7 @@ def main():
     testing_sentences = []
     testing_labels = []
 
-    if params["test_length"] > 0:
+    if params["test_length"] > 0:   # sampling from test dataset
         testing_sentences_sampled , testing_labels_sampled , _ = random_equal_sampling(all_test_sentences , all_test_labels , number_labels , params["test_length"])
         testing_sentences += testing_sentences_sampled
         print("Testing sentences have been created with length {}".format(len(testing_sentences_sampled)))
@@ -69,7 +69,7 @@ def main():
         testing_sentences += all_test_sentences
 
     random.seed(params['seed'])
-    if all_val_sentences is not None:
+    if len(all_val_sentences) > 0:
         random.shuffle(all_val_sentences)
         testing_sentences = all_val_sentences + testing_sentences
     else:
@@ -130,10 +130,12 @@ def main():
             os.makedirs(data_path_with_timestamp)
     else:
         data_path_with_timestamp = params["data_path"]
+    
     # dump the json
     with open(data_path_with_timestamp + "/configs.json" , "w") as f:
         json.dump(params , f)
 
+    # create the prompt optimization environment and run the algorithm
     env = PromptOptEnv(params , example_pool_sentences_relabeled, example_pool_labels, testing_sentences_relabeled, testing_labels , data_path_with_timestamp)
     rewards = env.run_algorithm()
 

@@ -6,11 +6,10 @@ from datetime import datetime
 from time import time
 
 class Slate_GLinCB_Prompt_Opt():
-    # TODO: param_norm_ub
     def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path , horizon):
         self.slot_count = num_examples
         self.item_count = example_pool_size
-        self.dim_per_action = 3 * embedding_dim      # to acccount for the query embedding
+        self.dim_per_action = 3 * embedding_dim      # to acccount for the query embedding and label embedding
         self.dim = self.slot_count * self.dim_per_action
         self.failure_level = failure_level
         self.param_norm_ub = param_norm_ub
@@ -23,7 +22,6 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
             self.theta = np.array([np.random.random()*2-1 for i in range(self.dim)])
             self.theta /= np.linalg.norm(self.theta)
-            # self.theta = np.zeros(self.dim)
             self.conf_radius = 0
             self.cum_loss = 0
             self.ctr = 0
@@ -39,26 +37,15 @@ class Slate_GLinCB_Prompt_Opt():
             self.cum_loss = np.load(folder_name + "/cum_loss.npy")
             self.ctr = np.load(folder_name + "/ctr.npy")
 
-    def reset(self):
-        self.vtilde_matrix = self.l2reg * np.eye(self.dim)
-        self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
-        self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
-        self.v_matrices_inv = [(1 / self.l2reg) * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
-        # self.theta = np.array([np.random.random()*2-1 for i in range(self.dim)])
-        # self.theta /= np.linalg.norm(self.theta)
-        self.theta = np.zeros(self.dim)
-        self.conf_radius = 0
-        self.cum_loss = 0
-        self.ctr = 1
-
     def update_parameters(self, picked_arms, reward):
-
-        arm = np.hstack([*picked_arms])
+        '''
+        function to update the parameters after each run of the alg
+        '''
         
+        arm = np.hstack([*picked_arms])
+
         # linearly increasing precision between 0.1 and 0.01
         precision = -0.09*self.ctr/(self.horizon-1) + (0.1 + 0.09/(self.horizon-1)) 
-        # precision = 0.1
-
         # compute new estimate theta
         self.theta = np.real_if_close(fit_online_logistic_estimate(arm=arm,
                                                                    reward=reward,
@@ -68,7 +55,6 @@ class Slate_GLinCB_Prompt_Opt():
                                                                    constraint_set_radius=self.param_norm_ub,
                                                                    diameter=self.param_norm_ub,
                                                                    precision=precision))
-       
         # compute theta_bar (needed for data-dependent conf. width)
         theta_bar = np.real_if_close(fit_online_logistic_estimate_bar(arm=arm,
                                                                       current_estimate=self.theta,
@@ -91,7 +77,6 @@ class Slate_GLinCB_Prompt_Opt():
             msg = f"\033[95m Oops. ECOLog has a problem: the data-dependent condition was not met. This is rare; try increasing the regularization (self.l2reg) \033[95m"
             raise ValueError(msg)
 
-
         # update sum of losses
         coeff_theta = sigmoid(np.dot(self.theta, arm))
         loss_theta = -reward * np.log(coeff_theta) - (1-reward) * np.log(1-coeff_theta)
@@ -101,18 +86,20 @@ class Slate_GLinCB_Prompt_Opt():
 
         # extract the slotwise arm without the zeros
         slot_wise_arms = picked_arms
+
         # create temp arms which are sqrt(sigmoid(arm*theta))
         temp_slot_wise_arms = [dsigmoid(np.sum(self.theta * arm))**0.5 * a for a in slot_wise_arms]
+        
         # update the slotwise parameters
         for idx , arm in enumerate(temp_slot_wise_arms):
             self.v_matrices[idx] += np.outer(arm, arm)
             self.v_matrices_inv[idx] = self.sherman_morrison_update(self.v_matrices_inv[idx] , arm , arm)
 
+
     def pull(self, arm_set , seperate_pools = False):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
         self.update_ucb_bonus()
         pulled_arms_indices = self.slotwise_argmax(self.compute_optimistic_reward , arm_set , seperate_pools)  
-        # update ctr
         self.ctr += 1
         return pulled_arms_indices
 
@@ -145,18 +132,18 @@ class Slate_GLinCB_Prompt_Opt():
     def slotwise_argmax(self , fun , arm_set , seperate_pools = False):
         '''
         returns the best arm in each set maximizing fun
-        differs from the slotwise_argmax for normal Slate_G_Lincb in the way that there 
-        is a common pool for the slots
         '''
         picked_actions_indices = []
         for slot in range(self.slot_count):
+            # if seperate pools each slot has its own set of arms
             slot_arms = arm_set[slot] if seperate_pools else arm_set
+            
             slot_values = [(i,fun(a , slot)) for i,a in enumerate(slot_arms)]
             sorted_slot_values = sorted(slot_values , key = lambda x: x[1] , reverse = True)
             
+            # if seperate pools then no worry about repetition of arms
             if seperate_pools:
                 picked_actions_indices.append(sorted_slot_values[0][0])
-
             else:
                 # ensure examples donot repeat over slots
                 for i in range(len(sorted_slot_values)):

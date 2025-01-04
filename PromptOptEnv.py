@@ -34,17 +34,16 @@ class PromptOptEnv():
         self.example_pool_labels = example_pool_labels
         
         if not self.random_baseline:
+            # load the embedding model and create the embeddings
             self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
-    
-            # construct prompt style examples with prefixes, example, and answer and embed
-            # self.construct_example_with_answers_prefixes()
-            # self.example_embeddings = {i : generate_embeddings(s , self.embedding_dim , self.embedding_model) for i,s in enumerate(self.example_with_answers_prefixes)}
-            
             self.example_embeddings = {s['idx'] : generate_embeddings(s['sentence'] , self.embedding_dim , self.embedding_model) for s in example_pool_sentences}
+
             # appending the labels' embeddings to the embeddings
             for k in self.example_embeddings.keys():
                 self.example_embeddings[k] = np.hstack([self.example_embeddings[k] , generate_embeddings(self.label_dict[self.example_pool_labels[k]][0] , self.embedding_dim , self.embedding_model)])
             
+            # creating the inverse dictionary
+            # we have to create tuples since lists are not hashable
             self.inv_example_embeddings = {}
             for k , v in self.example_embeddings.items():
                 self.inv_example_embeddings[tuple(v)] = k
@@ -52,25 +51,20 @@ class PromptOptEnv():
         self.queries = testing_sentences
         self.query_labels = testing_labels
 
+        # setting up the roberta model
         self.model, self.tokenizer = setup_roberta()
 
+        # loading the rewards
         self.rewards = [] if self.start_with < 0 else np.load(self.data_path + "/parameters_{}/rewards_array.npy".format(self.start_with)).tolist()
 
-        # TODO: param_norm_ub
+        # setting up the algorithm
         self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries))
 
-    def construct_example_with_answers_prefixes(self):
-        self.example_with_answers_prefixes = []
-
-        for e,l in zip(self.example_pool , self.example_pool_labels):
-            temp = ""
-            temp += self.q_prefix + e['sentence']
-            temp += "\n"
-            temp += self.a_prefix + self.label_dict[l][0]
-            temp += "\n" 
-            self.example_with_answers_prefixes.append(temp)
 
     def construct_prompt(self , query_idx):
+        '''
+        function to create the prompt for a given query
+        '''
         prompt = self.prompt_prefix
         for i in range(self.num_shots):
             prompt += self.q_prefix + self.chosen_examples[i]['sentence']
@@ -83,20 +77,30 @@ class PromptOptEnv():
         return prompt
 
     def construct_arms(self , query_idx):
+        '''
+        function to construct the arms which concatenates the query and example embeddings
+        '''
         query = self.queries[query_idx]['sentence']
         query_embedding = generate_embeddings(query , self.embedding_dim , self.embedding_model)
         self.arm_set = [np.hstack([query_embedding , example_embedding]) for example_embedding in self.example_embeddings.values()]
 
     def construct_random_pools(self):
+        '''
+        function to break the example pool randomly into subsets for each slot
+        '''
         ordering = np.random.permutation(self.example_pool_size).reshape(self.num_shots , -1)
         self.arm_set =  [[self.arm_set[i] for i in ordering[j]] for j in range(self.num_shots)]
 
     def run_algorithm(self):
+        '''
+        runs the algorithm
+        '''
         for time_idx in tqdm(range(self.start_with+1 , len(self.queries))):
             assert time_idx == self.queries[time_idx]["idx"]
 
             self.chosen_examples = []
             if not self.random_baseline:
+                
                 # construct the armset which uses embedding of queries and all examples
                 self.construct_arms(time_idx)   
 
@@ -159,68 +163,11 @@ class PromptOptEnv():
                 np.save(time_folder + "/cum_loss", self.alg.cum_loss)
                 np.save(time_folder + "/ctr", self.alg.ctr)
 
+        # saving the final reward array
         np.save(self.data_path + "/rewards_array_final" , np.array(self.rewards))
         return self.rewards
 
     def get_prediction(self , prompt):
-        # prompt = [prompt]
-        # label_idx = [self.tokenizer.convert_tokens_to_ids('\u0120'+label) for label in self.inv_label_dict.keys()]
-        # input_ids = self.tokenizer.batch_encode_plus(prompt, return_tensors="pt").to(self.model.device)
-        # if input_ids['input_ids'].shape[1] > 512:
-        #     input_ids['input_ids'] = input_ids['input_ids'][:, -512:]
-        #     input_ids['attention_mask'] = input_ids['attention_mask'][:, -512:]
-        # mask_ids = (input_ids['input_ids'] == 50264)[0].nonzero(as_tuple=True)[0]
-
-        # # they want the probs of the top tokens
-        # # we are left padding, so we need to adjust the position IDs
-        # attention_mask = (input_ids['input_ids'] != 50256).float()
-        # position_ids = attention_mask.long().cumsum(-1) - 1
-        # position_ids.masked_fill_(attention_mask == 0, 1)
-
-        # with torch.no_grad():
-        #     outputs = self.model(**input_ids, output_hidden_states=True)
-
-        # logits = outputs.logits.detach().cpu()
-
-        # # get the top tokens and probs for the generated l tokens
-        # probs = torch.softmax(logits[:, mask_ids.cpu()].float(), dim=2).cpu()
-        # top_tokens = torch.cat([torch.tensor(np.array(label_idx)).to(probs.device).unsqueeze(0).unsqueeze(0) for _ in range(probs.shape[0])], dim=0)
-        # top_probs = probs[:, :, torch.tensor(np.array(label_idx)).to(probs.device)]
-
-        # top_log_probs = torch.log(top_probs)
-        # total_sequences = input_ids['input_ids']
-
-        # return_json = {}
-        # choices = []
-        # curr_json = {}
-
-        # # text is just the optional context and next l tokens
-        # for batch_id in range(len(prompt)):
-        #     curr_json['text'] = self.tokenizer.decode(total_sequences[batch_id][mask_ids], skip_special_tokens=True)
-        #     curr_json['logprobs'] = {}
-        #     curr_json['logprobs']['top_logprobs'] = []
-        #     curr_json['logprobs']['token_logprobs'] = []
-        #     curr_json['logprobs']['tokens'] = []
-        #     # cutoff the -1 here because the probs are shifted one over for LMs
-        #     for current_element_top_log_probs, current_element_top_tokens in zip(top_log_probs[batch_id], top_tokens[batch_id]):
-        #         # tokens is a list of the top token at each position
-        #         curr_json['logprobs']['tokens'].append(self.tokenizer.decode([current_element_top_tokens[0]]))
-        #         # token_logprobs is a list of the logprob of the top token at each position
-        #         curr_json['logprobs']['token_logprobs'].append(current_element_top_log_probs[0].item())
-        #         # top_logprobs is a list of dicts for the top K tokens. with each entry being {'token_name': log_prob}
-        #         temp = {}
-        #         for log_prob, token in zip(current_element_top_log_probs, current_element_top_tokens):
-        #             temp[self.tokenizer.decode(token.item())] = log_prob.item()
-        #         curr_json['logprobs']['top_logprobs'].append(temp)
-
-        #     choices.append(curr_json)
-
-        # return_json['choices'] = choices
-        # with torch.no_grad():
-        #     torch.cuda.empty_cache()
-        # print(return_json["choices"][0]["logprobs"])
-        # return return_json["choices"][0]["logprobs"]["tokens"][0].strip(), return_json["choices"][0]["logprobs"]["token_logprobs"][0]
-
         inputs = self.tokenizer(prompt, return_tensors="pt")
         if inputs['input_ids'].shape[1] > 512:
             # print("Token length exceeds 512. Truncating to 512")
@@ -232,6 +179,5 @@ class PromptOptEnv():
 
         # retrieve index of <mask>
         mask_token_index = (inputs.input_ids == self.tokenizer.mask_token_id)[0].nonzero(as_tuple=True)[0]
-
         predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
         return self.tokenizer.decode(predicted_token_id)

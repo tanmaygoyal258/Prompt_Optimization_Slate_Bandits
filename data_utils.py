@@ -10,12 +10,13 @@ def load_sst2():
     train_labels = train_sentences['label']
     validation_sentences = load_dataset('glue', 'sst2', split='validation')
     validation_labels = validation_sentences['label']
-    test_sentences = load_dataset('glue', 'sst2', split='test')
-    test_labels = test_sentences['label']
+    # all test labels are -1
+    # test_sentences = load_dataset('glue', 'sst2', split='test')
+    # test_labels = test_sentences['label']
     train_sentences = [sentence for sentence in train_sentences]
     validation_sentences = [sentence for sentence in validation_sentences]
     test_sentences = [sentence for sentence in test_sentences]
-    return train_sentences, train_labels, validation_sentences , validation_labels , test_sentences, test_labels
+    return train_sentences, train_labels, [] , [] , validation_sentences , validation_labels
 
 def load_qnli():
     from datasets import load_dataset
@@ -94,7 +95,7 @@ def load_yelp_polarity():
     int2str = inv_map = {v: k for k, v in str2int.items()}
     train_sentences = [sentence for sentence in train_sentences]
     test_sentences = [sentence for sentence in test_sentences]
-    return train_sentences, train_labels, None , None , test_sentences, test_labels, str2int, int2str
+    return train_sentences, train_labels, [] , [] , test_sentences, test_labels, str2int, int2str
 
 def load_rte():
     from datasets import load_dataset
