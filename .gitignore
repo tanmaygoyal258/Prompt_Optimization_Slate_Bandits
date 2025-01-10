@@ -5,3 +5,4 @@ glue_sst2_result/*
 *.xlsx
 yelp_polarity_result/*
 glue_mrpc_result/*
+configs.sh
