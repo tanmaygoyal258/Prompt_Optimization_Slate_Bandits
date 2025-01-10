@@ -35,7 +35,6 @@ def fit_online_logistic_estimate(arm, reward, current_estimate, vtilde_matrix, v
     theta_estimate = np.dot(sqrt_vtilde_inv_matrix, z_estimate)
     return theta_estimate
 
-
 def fit_online_logistic_estimate_bar(arm, current_estimate, vtilde_matrix, vtilde_inv_matrix, constraint_set_radius,
                                      diameter=1, precision=0.1):
     """
@@ -61,7 +60,6 @@ def fit_online_logistic_estimate_bar(arm, current_estimate, vtilde_matrix, vtild
                                        radius=constraint_set_radius)
     theta_estimate = np.dot(sqrt_vtilde_inv_matrix, z_estimate)
     return theta_estimate
-
 
 def project_ellipsoid(x_to_proj, ell_center, ecc_matrix, radius, safety_check=False):
     """

@@ -1,4 +1,4 @@
-from utils import generate_embeddings #, ChatGPT_eval
+from utils import generate_embeddings , ChatGPT_eval
 import numpy as np
 from Slate_GLincb_Prompt_Opt import Slate_GLinCB_Prompt_Opt
 from utils import setup_roberta
@@ -26,6 +26,7 @@ class PromptOptEnv():
         self.data_path = data_path
         self.random_baseline = params["random_baseline"]
         self.seperate_pools = params["seperate_pools"]
+        self.repeat_examples = params["repeat_examples"]
         self.outfile = open(data_path + "/prompts_chosen.txt" , "a+")
 
 
@@ -35,7 +36,7 @@ class PromptOptEnv():
         
         if not self.random_baseline:
             # load the embedding model and create the embeddings
-            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+            self.embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True , device = "mps")
             self.example_embeddings = {s['idx'] : generate_embeddings(s['sentence'] , self.embedding_dim , self.embedding_model) for s in example_pool_sentences}
 
             # appending the labels' embeddings to the embeddings
@@ -58,8 +59,7 @@ class PromptOptEnv():
         self.rewards = [] if self.start_with < 0 else np.load(self.data_path + "/parameters_{}/rewards_array.npy".format(self.start_with)).tolist()
 
         # setting up the algorithm
-        self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries))
-
+        self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
 
     def construct_prompt(self , query_idx):
         '''
@@ -118,7 +118,7 @@ class PromptOptEnv():
                     self.chosen_examples.append(self.example_pool[self.inv_example_embeddings[tuple(embedding)]])
 
             else:
-                chosen_examples_indices = np.random.choice(len(self.example_pool) , self.num_shots , replace=False)
+                chosen_examples_indices = np.random.choice(len(self.example_pool) , self.num_shots , replace=self.repeat_examples)
                 self.chosen_examples = [self.example_pool[idx] for idx in chosen_examples_indices]
 
             # construct the prompt

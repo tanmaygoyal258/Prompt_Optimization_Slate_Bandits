@@ -1,5 +1,5 @@
 import torch.nn.functional as F
-# from ChatGPT import ChatGPT
+from ChatGPT import ChatGPT
 from copy import deepcopy
 import numpy as np
 from transformers import GPT2Tokenizer, GPT2LMHeadModel, RobertaConfig, RobertaTokenizer, RobertaForMaskedLM, AutoTokenizer
@@ -20,7 +20,6 @@ def generate_embeddings(text: str , dim: int = 64 , model = None):
     embeddings = F.normalize(embeddings, p=2, dim=1)
     embeddings = embeddings.cpu().numpy().reshape(-1)
     return embeddings
-
 
 def ChatGPT_eval(response: str, target: str) -> float:
 

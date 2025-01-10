@@ -15,7 +15,7 @@ def load_sst2():
     # test_labels = test_sentences['label']
     train_sentences = [sentence for sentence in train_sentences]
     validation_sentences = [sentence for sentence in validation_sentences]
-    test_sentences = [sentence for sentence in test_sentences]
+    # test_sentences = [sentence for sentence in test_sentences]
     return train_sentences, train_labels, [] , [] , validation_sentences , validation_labels
 
 def load_qnli():

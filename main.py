@@ -25,8 +25,8 @@ def parse_args():
     parser.add_argument("--seperate_pools" , action = "store_true" , help = "Split the common pool into random pools for each slot")
     parser.add_argument("--warmup_length" , type = int , default = 0)   
     parser.add_argument("--test_length" , type = int , default = 0)
+    parser.add_argument("--repeat_examples" , action = "store_true" , help = "Repeat examples in the prompt")
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
@@ -45,6 +45,7 @@ def main():
     params["seperate_pools"] = args.seperate_pools
     params["warmup_length"] = args.warmup_length
     params["test_length"] = args.test_length
+    params["repeat_examples"] = args.repeat_examples
     assert params["embedding_dim"] in [64,128,256,512,768] , "Invalid dimensions for embedding. Please choose from [64,128,256,512,768]"
     print(params)
 

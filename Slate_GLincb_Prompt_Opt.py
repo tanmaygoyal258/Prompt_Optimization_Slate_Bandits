@@ -6,7 +6,7 @@ from datetime import datetime
 from time import time
 
 class Slate_GLinCB_Prompt_Opt():
-    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path , horizon):
+    def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path , horizon , repeat_examples):
         self.slot_count = num_examples
         self.item_count = example_pool_size
         self.dim_per_action = 3 * embedding_dim      # to acccount for the query embedding and label embedding
@@ -15,6 +15,7 @@ class Slate_GLinCB_Prompt_Opt():
         self.param_norm_ub = param_norm_ub
         self.l2reg = 5
         self.horizon = horizon
+        self.repeat_examples = repeat_examples
         if start_with < 0:
             self.vtilde_matrix = self.l2reg * np.eye(self.dim)
             self.vtilde_matrix_inv = (1 / self.l2reg) * np.eye(self.dim)
@@ -95,7 +96,6 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices[idx] += np.outer(arm, arm)
             self.v_matrices_inv[idx] = self.sherman_morrison_update(self.v_matrices_inv[idx] , arm , arm)
 
-
     def pull(self, arm_set , seperate_pools = False):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
         self.update_ucb_bonus()
@@ -145,11 +145,14 @@ class Slate_GLinCB_Prompt_Opt():
             if seperate_pools:
                 picked_actions_indices.append(sorted_slot_values[0][0])
             else:
-                # ensure examples donot repeat over slots
-                for i in range(len(sorted_slot_values)):
-                    if sorted_slot_values[i][0] not in picked_actions_indices:
-                        picked_actions_indices.append(sorted_slot_values[i][0])
-                        break
+                if self.repeat_examples:
+                    picked_actions_indices.append(sorted_slot_values[0][0])
+                else:
+                    # ensure examples donot repeat over slots
+                    for i in range(len(sorted_slot_values)):
+                        if sorted_slot_values[i][0] not in picked_actions_indices:
+                            picked_actions_indices.append(sorted_slot_values[i][0])
+                            break
 
         return picked_actions_indices
         
