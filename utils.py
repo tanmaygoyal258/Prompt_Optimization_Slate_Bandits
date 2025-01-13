@@ -2,7 +2,7 @@ import torch.nn.functional as F
 from ChatGPT import ChatGPT
 from copy import deepcopy
 import numpy as np
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, RobertaConfig, RobertaTokenizer, RobertaForMaskedLM, AutoTokenizer
+from transformers import RobertaForMaskedLM, AutoTokenizer
 import torch
 from scipy.linalg import sqrtm
 

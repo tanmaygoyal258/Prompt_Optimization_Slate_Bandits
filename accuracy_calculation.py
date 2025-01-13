@@ -2,11 +2,11 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-TRAIN_SET_LENGTH = 3636
-VAL_SET_LENGTH = 408   
-TEST_SET_LENGTH = 1725
+TRAIN_SET_LENGTH = 4128
+VAL_SET_LENGTH = 0   
+TEST_SET_LENGTH = 872
 
-folder = "glue_mrpc_result/09-01_14-55"
+folder = "glue_sst2_result/10-01_16-19"
 for x in os.listdir(folder):
    if 'parameters' in x and not os.path.isfile(x):
     current_parameter_folder = os.path.join(folder , x)

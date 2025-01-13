@@ -1,13 +1,6 @@
 import openai
 from basic_LLM import BasicLLM
-
-from azure.identity import (
-    AzureCliCredential,
-    AuthenticationRecord,
-    InteractiveBrowserCredential,
-    TokenCachePersistenceOptions
-)
-
+from azure.identity import AzureCliCredential
 from pathlib import Path, PurePath
 import tempfile
 from time import sleep
@@ -51,32 +44,6 @@ class ChatGPT(BasicLLM):
         return llm
 
     def get_auth_token(self,scope: str) -> str:
-        # deserialized_auth_record = None
-
-        # auth_token_cache_file_path = str(
-        #     PurePath(tempfile.gettempdir(), "auth_token_cache.json")
-        # )
-        # if self.exists(auth_token_cache_file_path):
-        #     auth_record_json = self.read_file(auth_token_cache_file_path)
-        #     deserialized_auth_record = AuthenticationRecord.deserialize(auth_record_json)
-
-        # token_cache_persistence_options = TokenCachePersistenceOptions(
-        #     allow_unencrypted_storage=True
-        # )
-
-        # credential = InteractiveBrowserCredential(
-        #     cache_persistence_options=token_cache_persistence_options,
-        #     authentication_record=deserialized_auth_record,
-        # )
-
-        # auth_token = credential.get_token(scope).token
-        # auth_record = credential.authenticate(scopes=[scope])
-        # auth_record_json = AuthenticationRecord.serialize(auth_record)
-
-        # self.write_file(auth_token_cache_file_path, auth_record_json)
-
-        # return auth_token
-
         credential = AzureCliCredential()	# Get the auth token for the required scope.
         auth_token = credential.get_token(scope).token	# Calling authenticate to get the auth record.
         return auth_token
