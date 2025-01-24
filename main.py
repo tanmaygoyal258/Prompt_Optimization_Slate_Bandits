@@ -11,6 +11,7 @@ from utils import random_equal_sampling
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--alg_name" , type = str , default = "OFUL" , help = "alg  to implement in [TS , OFUL]" )
     parser.add_argument("--dataset", type = str , default = "glue/sst2")
     parser.add_argument("--seed", type = int , default = 2)
     parser.add_argument("--num_shots", type = int , default = 4)
@@ -31,6 +32,7 @@ def parse_args():
 def main():
     args = parse_args()
     params = {}
+    params["alg_name"] = args.alg_name
     params["dataset"] = args.dataset
     params["seed"] = args.seed
     params["num_shots"] = args.num_shots
@@ -122,7 +124,7 @@ def main():
     if params["data_path"] is None:
         now = datetime.now()
         timestamp = now.strftime("%d-%m_%H-%M")
-        data_path = "{}_result".format(params["dataset"])
+        data_path = "{}_result/{}".format(params["dataset"] , params["alg_name"])
         data_path = data_path.replace('/' , '_')
         if not os.path.exists(data_path):
             os.makedirs(data_path)

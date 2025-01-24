@@ -5,7 +5,7 @@ from utils import sigmoid, dsigmoid, weighted_norm, gaussian_sample_ellipsoid
 from datetime import datetime
 from time import time
 
-class Slate_GLinCB_Prompt_Opt():
+class Slate_GLM_TS_Prompt_Opt():
     def __init__(self, num_examples , example_pool_size , embedding_dim , failure_level , param_norm_ub , start_with , data_path , horizon , repeat_examples):
         self.slot_count = num_examples
         self.item_count = example_pool_size
@@ -23,6 +23,7 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices = [self.l2reg * np.eye(self.dim_per_action) for _ in range(self.slot_count)]
             self.theta = np.array([np.random.random()*2-1 for i in range(self.dim)])
             self.theta /= np.linalg.norm(self.theta)
+            self.theta_tilde = [np.zeros((self.embedding_dim,)) for _ in range(self.slot_count)]
             self.conf_radius = 0
             self.cum_loss = 0
             self.ctr = 0
@@ -34,6 +35,7 @@ class Slate_GLinCB_Prompt_Opt():
             self.v_matrices = np.load(folder_name + "/v_matrices.npy")
             self.v_matrices_inv = np.load(folder_name + "/v_matrices_inv.npy")
             self.theta = np.load(folder_name + "/theta.npy")
+            self.theta_tilde =  np.load(folder_name + "/theta_tilde.npy")
             self.conf_radius = np.load(folder_name + "/conf_radius.npy")
             self.cum_loss = np.load(folder_name + "/cum_loss.npy")
             self.ctr = np.load(folder_name + "/ctr.npy")
@@ -49,28 +51,28 @@ class Slate_GLinCB_Prompt_Opt():
         precision = -0.09*self.ctr/(self.horizon-1) + (0.1 + 0.09/(self.horizon-1)) 
         # compute new estimate theta
         self.theta = np.real_if_close(fit_online_logistic_estimate(arm=arm,
-                                                                   reward=reward,
-                                                                   current_estimate=self.theta,
-                                                                   vtilde_matrix=self.vtilde_matrix,
-                                                                   vtilde_inv_matrix=self.vtilde_matrix_inv,
-                                                                   constraint_set_radius=self.param_norm_ub,
-                                                                   diameter=self.param_norm_ub,
-                                                                   precision=precision))
+                                                                reward=reward,
+                                                                current_estimate=self.theta,
+                                                                vtilde_matrix=self.vtilde_matrix,
+                                                                vtilde_inv_matrix=self.vtilde_matrix_inv,
+                                                                constraint_set_radius=self.param_norm_ub,
+                                                                diameter=self.param_norm_ub,
+                                                                precision=precision))
         # compute theta_bar (needed for data-dependent conf. width)
         theta_bar = np.real_if_close(fit_online_logistic_estimate_bar(arm=arm,
-                                                                      current_estimate=self.theta,
-                                                                      vtilde_matrix=self.vtilde_matrix,
-                                                                      vtilde_inv_matrix=self.vtilde_matrix_inv,
-                                                                      constraint_set_radius=self.param_norm_ub,
-                                                                      diameter=self.param_norm_ub,
-                                                                      precision=precision))
+                                                                    current_estimate=self.theta,
+                                                                    vtilde_matrix=self.vtilde_matrix,
+                                                                    vtilde_inv_matrix=self.vtilde_matrix_inv,
+                                                                    constraint_set_radius=self.param_norm_ub,
+                                                                    diameter=self.param_norm_ub,
+                                                                    precision=precision))
         disc_norm = np.clip(weighted_norm(self.theta-theta_bar, self.vtilde_matrix), 0, np.inf)
 
         # update matrices
         sensitivity = dsigmoid(np.dot(self.theta, arm))
         self.vtilde_matrix += sensitivity * np.outer(arm, arm)
         self.vtilde_matrix_inv += - sensitivity * np.dot(self.vtilde_matrix_inv,
-                                                         np.dot(np.outer(arm, arm), self.vtilde_matrix_inv)) / (
+                                                        np.dot(np.outer(arm, arm), self.vtilde_matrix_inv)) / (
                                           1 + sensitivity * np.dot(arm, np.dot(self.vtilde_matrix_inv, arm)))
         # sensitivity check
         sensitivity_bar = dsigmoid(np.dot(theta_bar, arm))
@@ -99,6 +101,8 @@ class Slate_GLinCB_Prompt_Opt():
     def pull(self, arm_set , seperate_pools = False):
         # bonus-based version (strictly equivalent to param-based for this algo) of OL2M
         self.update_ucb_bonus()
+        self.theta_tilde = [gaussian_sample_ellipsoid(self.theta[i * self.dim_per_action : (i + 1) * self.dim_per_action], self.v_matrices[i] , self.conf_radius) \
+                            for i in range(self.slot_count)]
         pulled_arms_indices = self.slotwise_argmax(self.compute_optimistic_reward , arm_set , seperate_pools)  
         self.ctr += 1
         return pulled_arms_indices
@@ -118,8 +122,7 @@ class Slate_GLinCB_Prompt_Opt():
         Returns prediction + exploration_bonus for arm.
         """
         norm = weighted_norm(arm, self.v_matrices_inv[slot_idx])
-        local_theta = self.theta[slot_idx * self.dim_per_action : (slot_idx + 1) * self.dim_per_action]
-        pred_reward = np.dot(local_theta , arm)
+        pred_reward = self.reward_func(np.sum(self.theta_tilde[slot_idx] * arm))
         bonus = self.conf_radius * norm
         return pred_reward + bonus
     

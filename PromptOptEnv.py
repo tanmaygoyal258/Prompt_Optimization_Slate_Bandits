@@ -1,6 +1,7 @@
 from utils import generate_embeddings , ChatGPT_eval
 import numpy as np
-from Slate_GLincb_Prompt_Opt import Slate_GLinCB_Prompt_Opt
+from Slate_GLM_OFUL_Prompt_Opt import Slate_GLM_OFUL_Prompt_Opt
+from Slate_GLM_TS_Prompt_Opt import Slate_GLM_TS_Prompt_Opt
 from utils import setup_roberta
 from tqdm import tqdm
 import os
@@ -12,6 +13,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 class PromptOptEnv():
 
     def __init__(self , params , example_pool_sentences, example_pool_labels, testing_sentences, testing_labels , data_path):
+        self.alg_name = params["alg_name"]
         self.prompt_prefix = params["prompt_prefix"]
         self.q_prefix = params["q_prefix"]
         self.a_prefix = params["a_prefix"]
@@ -59,7 +61,12 @@ class PromptOptEnv():
         self.rewards = [] if self.start_with < 0 else np.load(self.data_path + "/parameters_{}/rewards_array.npy".format(self.start_with)).tolist()
 
         # setting up the algorithm
-        self.alg = Slate_GLinCB_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
+        if self.alg_name == "OFUL":
+            self.alg = Slate_GLM_OFUL_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
+        elif self.alg_name == "TS":
+            self.alg = Slate_GLM_OFUL_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
+        else:
+            assert False , "Incorrect Algorithm Name"
 
     def construct_prompt(self , query_idx):
         '''
