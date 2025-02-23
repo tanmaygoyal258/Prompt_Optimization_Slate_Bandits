@@ -1,4 +1,4 @@
-from utils import generate_embeddings , ChatGPT_eval
+from utils import generate_embeddings, ChatGPT_eval
 import numpy as np
 from Slate_GLM_OFUL_Prompt_Opt import Slate_GLM_OFUL_Prompt_Opt
 from Slate_GLM_TS_Prompt_Opt import Slate_GLM_TS_Prompt_Opt
@@ -64,7 +64,7 @@ class PromptOptEnv():
         if self.alg_name == "OFUL":
             self.alg = Slate_GLM_OFUL_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
         elif self.alg_name == "TS":
-            self.alg = Slate_GLM_OFUL_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
+            self.alg = Slate_GLM_TS_Prompt_Opt(self.num_shots , self.example_pool_size , self.embedding_dim , self.failure_level , self.param_norm_ub , self.start_with , self.data_path , len(self.queries) , self.repeat_examples)
         else:
             assert False , "Incorrect Algorithm Name"
 

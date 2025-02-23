@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.linalg import block_diag
 from optimization import fit_online_logistic_estimate, fit_online_logistic_estimate_bar
 from utils import sigmoid, dsigmoid, weighted_norm, gaussian_sample_ellipsoid
 from datetime import datetime

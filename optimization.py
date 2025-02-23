@@ -10,7 +10,7 @@ from time import time
 
 
 def fit_online_logistic_estimate(arm, reward, current_estimate, vtilde_matrix, vtilde_inv_matrix, constraint_set_radius,
-                                 diameter=1, precision=0.1):
+                                diameter=1, precision=0.1):
     """
     ECOLog estimation procedure.
     """
@@ -55,9 +55,9 @@ def fit_online_logistic_estimate_bar(arm, current_estimate, vtilde_matrix, vtild
         grad = z_estimate - z_theta_t + (2*pred_probas - 1) * inv_z_arm
         unprojected_update = z_estimate - step_size * grad
         z_estimate = project_ellipsoid(x_to_proj=unprojected_update,
-                                       ell_center=np.zeros_like(arm),
-                                       ecc_matrix=vtilde_matrix,
-                                       radius=constraint_set_radius)
+                                    ell_center=np.zeros_like(arm),
+                                    ecc_matrix=vtilde_matrix,
+                                    radius=constraint_set_radius)
     theta_estimate = np.dot(sqrt_vtilde_inv_matrix, z_estimate)
     return theta_estimate
 

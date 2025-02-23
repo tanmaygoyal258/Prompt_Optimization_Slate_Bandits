@@ -6,12 +6,12 @@ TRAIN_SET_LENGTH = 4128
 VAL_SET_LENGTH = 0   
 TEST_SET_LENGTH = 872
 
-folder = "glue_sst2_result/10-01_16-19"
+folder = "glue_sst2_result_TS/26-01_03-51"
 for x in os.listdir(folder):
-   if 'parameters' in x and not os.path.isfile(x):
-    current_parameter_folder = os.path.join(folder , x)
+    if 'parameters' in x and not os.path.isfile(x):
+        current_parameter_folder = os.path.join(folder , x)
 try:
-   reward = np.load(current_parameter_folder + "/rewards_array.npy")
+    reward = np.load(current_parameter_folder + "/rewards_array.npy")
 except:
     reward = np.load(folder + "/rewards_array_final.npy")
 

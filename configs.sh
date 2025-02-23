@@ -1,7 +1,7 @@
 #!/bin/bash
 
 python3 main.py \
---alg_name TS
+--alg_name TS \
 --dataset glue/sst2 \
 --seed 2 \
 --num_shots 4 \
@@ -14,7 +14,7 @@ python3 main.py \
 
 
 python3 main.py \
---alg_name TS
+--alg_name TS \
 --dataset glue/sst2 \
 --seed 2 \
 --num_shots 4 \

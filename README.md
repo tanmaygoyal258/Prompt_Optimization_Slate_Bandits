@@ -1,8 +1,9 @@
-To run the experiments, you can use the following command:
+### This is a README dedicated to the Prompt Optimization Experiments in the paper "Efficient Algorithms for Logistic Slate Contextual Bandits with Bandit Feedback"
 
 ```
 python3 main.py --dataset [DATASET] --seed [SEED] --num_shots [NUM_SHOTS] --example_pool_size [EXAMPLE_POOL_SIZE] --embedding_dim [EMBEDDING_DIM] --failure_level [FAILURE_LEVEL] --only_test --load_chkpt_idx [LOAD_CHKPT_IDX] --load_data_path [LOAD_DATA_PATH] --comments [COMMENTS] --random_baseline --seperate_pools --warmup_length [WARMUP_LENGTH] --test_length [TEST_LENGTH] --repeat_examples
 ```
+
 
 The arguments are explained as follows:
 1.  Dataset: The dataset you wish to use
