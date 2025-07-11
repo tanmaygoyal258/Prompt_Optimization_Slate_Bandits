@@ -1,4 +1,4 @@
-### This is a README dedicated to the Prompt Tuning Experiments in the paper [Efficient Algorithms for Logistic Slate Contextual Bandits with Bandit Feedback](https://arxiv.org/abs/2506.13163)
+### This is a README dedicated to the Prompt Tuning Experiments in the paper [Efficient Algorithms for Logistic Contextual Slate Bandits with Bandit Feedback](https://arxiv.org/abs/2506.13163)
 
 To run the files, you can use the following command:
 ```
